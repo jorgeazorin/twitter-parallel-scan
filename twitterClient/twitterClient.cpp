@@ -3,6 +3,8 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <tr1/unordered_map>
+
 using namespace std;
 
 
@@ -21,7 +23,40 @@ using namespace std;
 		  return internal;
 	}
 
+	string MesToNum(string mes){
+		if(mes=="Jan")
+			return "01";
+		else if(mes=="Feb")
+			return "02";
+		else if(mes=="Mar")
+			return "03";
+		else if(mes=="Apr")
+			return "04";
+		else if(mes=="May")
+			return "05";
+		else if(mes=="Jun")
+			return "06";
+		else if(mes=="Jul")
+			return "07";
+		else if(mes=="Aug")
+			return "08";
+		else if(mes=="Sep")
+			return "09";
+		else if(mes=="Oct")
+			return "10";
+		else if(mes=="Nov")
+			return "11";
+		else if(mes=="Dec")
+			return "12";
+		else 
+			return "00";
+	}
 
+	class Tweet {
+  		public:
+  			int fecha;
+  			string texto;
+    };
 
 //////////////////////////////////////////////////////////////
 //MAIN
@@ -63,9 +98,11 @@ int main( int argc, char* argv[] )
 	        bool ya3=true;
 		   	for(string t : sep){
 			   	if(t.length()>3){
-			   	//	 cout << t<<endl;
 		    		 if(t.substr (2,10)=="created_at" ){
-		    		 	Fichero <<t.substr(15,t.length()-16) <<";";                                
+		    		 	vector<string> fecha = split(t.substr(15,t.length()-16), ' ');
+		    		 	string fechastring=fecha[2]+MesToNum(fecha[1])+fecha[5];
+		    		 	int fechaint = atoi(fechastring.c_str());   
+		    		 	Fichero <<fechastring<<";";                             
 		    		 	ya=true;
 		    		 	ya3=true;
 		    		 	tweetscompletos=false;
@@ -75,12 +112,10 @@ int main( int argc, char* argv[] )
 		     			 
 					}else
 						ya3=false;
-
-
 		    		 if( t.substr (1,4)== "text" && ya==true && t.substr (1,4)== "text"){
 		    		 	Fichero <<t.substr(8,t.length()-9); 
 		    		 	ya2=true;
-		     		}//"source"
+		     		}
 		     		if(t.substr(1,6)=="source" && ya==true){
 		     			Fichero <<endl;
 		     			ya2=false;
