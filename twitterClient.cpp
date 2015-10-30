@@ -1,4 +1,7 @@
-﻿#include "twitterClient.h"
+﻿#include <cstdio>
+#include <iostream>
+#include <fstream>
+#include "libtwitcurl/twitcurl.h"
 #include <iostream>
 #include <vector>
 #include <string>
