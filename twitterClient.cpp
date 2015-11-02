@@ -15,8 +15,8 @@ using namespace std;
 ///////////////////////////////////////////////////////////////
 //Constantes globales
 //////////////////////////////////////////////////////////////
-const int MAX_USUARIOS_A_MIRAR=20;
-const int MAX_BUSCARAMIGOS=50; //maximo de veces que se buscan amigos si es 1 solo buscara los amigos de jorgeazorin si es mas busca tambien los amigos de los amigos de jorgeazorin
+const int MAX_USUARIOS_A_MIRAR=200;
+const int MAX_BUSCARAMIGOS=2; //maximo de veces que se buscan amigos si es 1 solo buscara los amigos de jorgeazorin si es mas busca tambien los amigos de los amigos de jorgeazorin
 const int USUARIO_INICIO=144533310; //Este es @jorgeazorin
 string palabrabuscada="fútbol";
 
@@ -107,7 +107,21 @@ Tweet StringToTweet(string t){
 	return tweet;
 }
 
+string fechaInt2fechaString(int fechaint){
+	string fechabruto="";
+    string fechalimpia="";
+	fechabruto=to_string(fechaint);
 
+	//Si el dia es menor de 10 le ponemos un 0 delante
+	if(fechabruto.length()<8)
+		fechabruto="0"+fechabruto;
+
+	//ponemos la fecha con /
+	fechalimpia=fechabruto.at(0);	fechalimpia+=fechabruto.at(1);	fechalimpia+="/";  	//Dia
+	fechalimpia+=fechabruto.at(2);	fechalimpia+=fechabruto.at(3);	fechalimpia+="/";	//Mes
+	fechalimpia+=fechabruto.at(4);	fechalimpia+=fechabruto.at(5); 	fechalimpia+=fechabruto.at(6); fechalimpia+=fechabruto.at(7); //Año
+	return fechalimpia;
+}
 
 
 
@@ -133,9 +147,9 @@ void replaceAll(string& str, const string& from, const string& to) {
 //Modulo para quitar los acentos de un texto
 /////////////////////////////////////////////////////////////
 void QuitarAcentos(string& texto){
-	//minusculas en json				//mayusculas en json				/minusculas	en unicode		/mayusculas en unicode
+	//minusculas en json				//mayusculas en json				//minusculasen unicode		//mayusculas en unicode
 	replaceAll(texto,"\\u00e1","a");	replaceAll(texto,"\\u00c1","a");	replaceAll(texto,"á","a");	replaceAll(texto,"Á","a");
-	replaceAll(texto,"\\u00e9","e");	replaceAll(texto,"\\00c9","e");		replaceAll(texto,"é","e");	replaceAll(texto,"É","e");
+	replaceAll(texto,"\\u00e9","e");	replaceAll(texto,"\\u00c9","e");	replaceAll(texto,"é","e");	replaceAll(texto,"É","e");
 	replaceAll(texto,"\\u00ed","i");	replaceAll(texto,"\\u00cd","i");	replaceAll(texto,"í","i");	replaceAll(texto,"Í","i");
 	replaceAll(texto,"\\u00f3","o");	replaceAll(texto,"\\u00d3","o");	replaceAll(texto,"ó","o");	replaceAll(texto,"Ó","o");
 	replaceAll(texto,"\\u00fa","u");	replaceAll(texto,"\\u00dA","u");	replaceAll(texto,"ú","u");	replaceAll(texto,"Ú","u");
@@ -160,8 +174,11 @@ int main( int argc, char* argv[] )
     twitterObj.setTwitterUsername( "jorgeazorin" );
     twitterObj.setTwitterPassword( "179832" );
     memset( tmpBuf, 0, 2048 );
-  	twitterObj.getOAuth().setConsumerKey( std::string( "2Kdg60HDmZEu2NXIp7MRMBQIm" ) );
-    twitterObj.getOAuth().setConsumerSecret( std::string( "IQcdiWnJd1bsWHytbLmSZa4aNxlPJ5Jr9ZjwOPjiDp31Tyactn" ) );
+	twitterObj.getOAuth().setConsumerKey( std::string( "ycPUlEPhZVdxushiDdXbNcDUH" ) );
+ 	twitterObj.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
+
+//  	twitterObj.getOAuth().setConsumerKey( std::string( "2Kdg60HDmZEu2NXIp7MRMBQIm" ) );
+//    twitterObj.getOAuth().setConsumerSecret( std::string( "IQcdiWnJd1bsWHytbLmSZa4aNxlPJ5Jr9ZjwOPjiDp31Tyactn" ) );
     replyMsg = "";					
 
 
@@ -183,11 +200,12 @@ int main( int argc, char* argv[] )
     //Recorrer la lista de usuarios que no se han visitado/
     ///////////////////////////////////////////////////////
 
+	int iteradorusuarios=0;
+
     //Añadimos el usuario Inicial a la lista
     UsuariosSinMirar.push_back(USUARIO_INICIO);
-    if(UsuariosSinMirar.empty())
-    cout<<"No hay usuarios sin mirar!!!!!!!!!"<<endl;
     while(usuariosMirados<MAX_USUARIOS_A_MIRAR && !UsuariosSinMirar.empty()){
+    	cout<<"eeeeeeeeeeeeeeeeeee"<<UsuariosSinMirar.size();
     	usuariosMirados++;
 
     	int UsuarioID=*UsuariosSinMirar.begin();
@@ -209,12 +227,12 @@ int main( int argc, char* argv[] )
 		        twitterObj.getLastWebResponse( replyMsg );
 		        string respuesta=replyMsg.c_str();
 
-
+		      // cout<<endl<<respuesta.substr(3,6)<<endl;
 
 		        //Veces que encuentra un tweet en el json si encuentra menos de 3 es seguro que ya no quedan tweets por mirar
 		        int repeticiones=0;
-
-		        if(respuesta.length()>50){
+		        //cout<<respuesta.substr(3,11)<<endl<<endl<<endl<<endl<<endl<<endl<<endl<<endl<<endl<<endl;
+		        if(respuesta.length()>50 && respuesta.substr(2,6)!="errors"){
 		        		tweetscompletos=false;
 		        		cout<<"Mirando tweets desde "<<ultimotweet<<endl;
 
@@ -259,7 +277,10 @@ int main( int argc, char* argv[] )
 
 		    	}else{
 			    	printf( "\nSe acabó\n" );
-			    	tweetscompletos=true;
+			    	cout<<respuesta<<endl;
+			    	twitterObj.getOAuth().setConsumerKey( std::string( "2Kdg60HDmZEu2NXIp7MRMBQIm" ) );
+   					twitterObj.getOAuth().setConsumerSecret( std::string( "IQcdiWnJd1bsWHytbLmSZa4aNxlPJ5Jr9ZjwOPjiDp31Tyactn" ) );
+			    	//tweetscompletos=true;
 			       // twitterObj.getLastCurlError( replyMsg );
 		    	}  
 		 	}
@@ -270,60 +291,67 @@ int main( int argc, char* argv[] )
 	     ///////////////////////////////////////////////////////
 	    //Obtener los amigos de un usuario/////////////////////
 	    ///////////////////////////////////////////////////////
+	     if(UsuariosSinMirar.size()<100){
 
-	    replyMsg = "";
-	    tmpStr = "techcrunch";
-	    if( twitterObj.friendsIdsGet( "", to_string(UsuarioID),true ) && usuariosMirados<=MAX_BUSCARAMIGOS){
-	    	cout<<"Buscando amigos"<<endl;
-	        //Pedimos los ids de los usuarios y los separamos en un vector/////////
-	        twitterObj.getLastWebResponse( replyMsg );
-	        string respuesta=replyMsg.c_str();
-	        vector<string> respuestas= split(respuesta,']');
-	        respuesta=respuestas[0].substr(8,respuestas[0].length()-8);
-	        vector<string> ids= split(respuesta,',');
+	     	int UsuarioID=UsuariosMirados[iteradorusuarios];
+	     	iteradorusuarios++;
+	     	string usuarioamirar=to_string(UsuarioID);
+		    replyMsg = "";
+		    tmpStr = "techcrunch";
+		    if( twitterObj.friendsIdsGet( "",usuarioamirar,true ) && usuariosMirados<=MAX_BUSCARAMIGOS){
 
-	       
-	        //Miramos si lo hemos mirado y si esta por mirar/////////////////////
-	        bool EstaEnUsuariosSinMirar=false;
-	        bool EstaEnUsuariosMirados=false;
+		    	cout<<"Buscando amigos de "<<usuarioamirar<<endl;
+		        //Pedimos los ids de los usuarios y los separamos en un vector/////////
+		        twitterObj.getLastWebResponse( replyMsg );
+		      //  cout<<replyMsg;
+		        string respuesta=replyMsg.c_str();
+		        if(respuesta.find("error") !=string::npos)
+		        	cout<<respuesta<<endl;
+		        vector<string> respuestas= split(respuesta,']');
+		        respuesta=respuestas[0].substr(8,respuestas[0].length()-8);
+		        vector<string> ids= split(respuesta,',');
 
-	        for (int i=0; i<ids.size(); i++){
-	        	
-	        	int EnteroId=atoi(ids[i].c_str());
-	        	for (int t=0; t<UsuariosSinMirar.size(); t++)
-	        		if(EnteroId==UsuariosSinMirar[t])
-	        			EstaEnUsuariosSinMirar=true;
-	        	for (int j=0; j<UsuariosMirados.size(); j++)
-	        		if(EnteroId==UsuariosMirados[j])
-	        			EstaEnUsuariosMirados=true;
-	        	//Si no esta en ninguna de las 2 listas lo añadimos a la lista que vamos a mirar
-	        	if(!EstaEnUsuariosMirados && !EstaEnUsuariosSinMirar)
-	        	 	UsuariosSinMirar.push_back(EnteroId);	
-			}
-	    }
+		       
+		        //Miramos si lo hemos mirado y si esta por mirar/////////////////////
+		        bool EstaEnUsuariosSinMirar=false;
+		        bool EstaEnUsuariosMirados=false;
+
+		        for (int i=0; i<ids.size(); i++){
+		        	EstaEnUsuariosSinMirar=false;
+		       		EstaEnUsuariosMirados=false;
+		        	int EnteroId=atoi(ids[i].c_str());
+
+
+		        	for (int t=0; t<UsuariosSinMirar.size(); t++)
+		        		if(EnteroId==UsuariosSinMirar[t])
+		        			EstaEnUsuariosSinMirar=true;
+
+
+		        	for (int j=0; j<UsuariosMirados.size(); j++)
+		        		if(EnteroId==UsuariosMirados[j])
+		        			EstaEnUsuariosMirados=true;
+		        	//Si no esta en ninguna de las 2 listas lo añadimos a la lista que vamos a mirar
+		        	if(!EstaEnUsuariosMirados && !EstaEnUsuariosSinMirar)
+		        	 	UsuariosSinMirar.push_back(EnteroId);	
+				}
+		    }
+		}
  	}
     
 
-    string fechabruto="";
-    string fechalimpia="";
-
-    //Mostrar resultados por pantalla
-    for (auto& x: VecesPorFecha){
-    	fechabruto=to_string(x.first);
-
-    	//Si el dia es menor de 10 le ponemos un 0 delante
-    	if(fechabruto.length()<8)
-    		fechabruto="0"+fechabruto;
-
-    	//ponemos la fecha con /
-    	fechalimpia=fechabruto.at(0);	fechalimpia+=fechabruto.at(1);	fechalimpia+="/";  	//Dia
-    	fechalimpia+=fechabruto.at(2);	fechalimpia+=fechabruto.at(3);	fechalimpia+="/";	//Mes
-    	fechalimpia+=fechabruto.at(4);	fechalimpia+=fechabruto.at(5); 	fechalimpia+=fechabruto.at(6); fechalimpia+=fechabruto.at(7); //Año
-
-
-    	Fichero<<fechalimpia<<";"<< x.second<<endl;
+    for(int a=2006;a<=2016;a++){
+    	for(int m=1;m<=12;m++){
+    		int veces=0;
+    		for(int d=1;d<=31;d++){
+    			int f=(d*1000000)+(m*10000)+a;
+    			unordered_map<int,int>::const_iterator got = VecesPorFecha.find (f);
+				if (got != VecesPorFecha.end() )
+					veces+=VecesPorFecha.at(f);
+    		}
+    		Fichero<<m<<"/"<<a<<";"<<veces<<endl;
+    		cout<<m<<"/"<<a<<";"<<veces<<endl;
+    	}
     }
-
     cout<<endl<<endl<<"Total tweets mirados "<<tweetsMirados << " de "<< usuariosMirados <<" usuarios"<<endl;
     cout<<"la palabra "<<palabrabuscada<<" aparece "<<vecesQueApareceLaPalabra<<" veces"<<endl;
    
