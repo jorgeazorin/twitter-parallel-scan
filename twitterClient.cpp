@@ -17,27 +17,8 @@ using namespace std;
 //////////////////////////////////////////////////////////////
 const int MAX_USUARIOS_A_MIRAR=200;
 const int MAX_BUSCARAMIGOS=2; //maximo de veces que se buscan amigos si es 1 solo buscara los amigos de jorgeazorin si es mas busca tambien los amigos de los amigos de jorgeazorin
-const int USUARIO_INICIO=144533310; //Este es @jorgeazorin
-string palabrabuscada="fútbol";
-
-
-
-
-
-///////////////////////////////////////////////////////////////
-//Variables globales
-//////////////////////////////////////////////////////////////
-string ultimotweet;
-unsigned int usuariosMirados=0;
-unsigned int tweetsMirados=0;
-unsigned int vecesQueApareceLaPalabra=0;
-vector<int> UsuariosSinMirar;
-vector<int> UsuariosMirados;
-unordered_map<int, int> VecesPorFecha;
-
-
-
-
+const string USUARIO_INICIO="144533310"; //Este es @jorgeazorin
+string palabrabuscada="ébola";
 
 //////////////////////////////////////////////////////////////
 //Clase Tweet
@@ -90,20 +71,14 @@ string MesToNum(string mes){
 /////////////////////////////////////////////////////////////
 Tweet StringToTweet(string t){
 	Tweet tweet;
-	if(t.length()>35){
-		tweetsMirados++;
-		///Obtener la fecha del tweet//////////////////
-	 	vector<string> fecha = split(t.substr(3,30), ' ');
-	 	string fechastring=fecha[2]+MesToNum(fecha[1])+fecha[5];
-	 	int fechaint = atoi(fechastring.c_str());   
-	 	tweet.fecha=fechaint;    
+	///Obtener la fecha del tweet//////////////////
+ 	vector<string> fecha = split(t.substr(3,30), ' ');
+ 	string fechastring=fecha[2]+MesToNum(fecha[1])+fecha[5];
+ 	int fechaint = atoi(fechastring.c_str());   
+ 	tweet.fecha=fechaint;    
 
-		///Obtener el texto del tweet//////////////////
-		tweet.texto=t.substr(t.find("text")+7,t.find("source")-t.find("text")-10);
-
-		///Obtener el id del tweet/////////////////////
-		ultimotweet=t.substr(t.find("id")+4,t.find("id_str")-t.find("id")-6);
-	}
+	///Obtener el texto del tweet//////////////////
+	tweet.texto=t.substr(t.find("text")+7,t.find("source")-t.find("text")-10);
 	return tweet;
 }
 
@@ -168,7 +143,6 @@ int main( int argc, char* argv[] )
     ///////////////////////////////////////////////////////
 
     twitCurl twitterObj;
-    std::string tmpStr, tmpStr2;
     std::string replyMsg;
     char tmpBuf[2048];
     twitterObj.setTwitterUsername( "jorgeazorin" );
@@ -202,14 +176,37 @@ int main( int argc, char* argv[] )
 
 	int iteradorusuarios=0;
 
+	//id del ultimo tweet desde que lee la api
+	string ultimotweet;
+
+	//numero de usuarios que se han mirado hasta el momento
+	unsigned int usuariosMirados=0;
+
+	//numero de tweets que se han mirado
+	unsigned int tweetsMirados=0;
+
+	//veces que aparece la palabra
+	unsigned int vecesQueApareceLaPalabra=0;
+
+	//en este vector guardaremos los usuarios que aun no hemos mirado y leido sus tuits
+	vector<string> UsuariosSinMirar;
+
+	//en este vector se van almacenando los usuarios que ya hayamos visto
+	vector<string> UsuariosMirados;
+
+
+	//mapa de clave fecha (entero) y valor numero de veces que se ha encontrado la palabra
+	//en esa fecha
+	unordered_map<int, int> VecesPorFecha;
+
     //Añadimos el usuario Inicial a la lista
     UsuariosSinMirar.push_back(USUARIO_INICIO);
     while(usuariosMirados<MAX_USUARIOS_A_MIRAR && !UsuariosSinMirar.empty()){
-    	cout<<"eeeeeeeeeeeeeeeeeee"<<UsuariosSinMirar.size();
+    	//cout<<"Quedan por analizar los tweets de "<<UsuariosSinMirar.size() << " usuarios";
+    	cout<<"Quedan por analizar los tweets de "<< MAX_USUARIOS_A_MIRAR-usuariosMirados << " usuarios";
     	usuariosMirados++;
-
-    	int UsuarioID=*UsuariosSinMirar.begin();
     	ultimotweet="";
+    	string UsuarioID=*UsuariosSinMirar.begin();
     	cout<<endl<<endl<<"Usuario id "<<UsuarioID<<endl;
     	UsuariosSinMirar.erase(UsuariosSinMirar.begin());
        	UsuariosMirados.push_back(UsuarioID);
@@ -223,87 +220,85 @@ int main( int argc, char* argv[] )
 	    ///Mientas la respuesta no sea un json vacio va a ir pidiendo tweets desde el ultimo recibido
 	    while(!tweetscompletos){
 	    	tweetscompletos=true;					 
-		    if( twitterObj.timelineUserGet(true, false,1000000,to_string(UsuarioID),true,ultimotweet)){//trimUser //retweets // nº //usuario//esusuarioID//ultimotweet
+		    if( twitterObj.timelineUserGet(true, false,1000000,UsuarioID,true,ultimotweet)){//trimUser //retweets // nº //usuario//esusuarioID//ultimotweet
 		        twitterObj.getLastWebResponse( replyMsg );
 		        string respuesta=replyMsg.c_str();
 
 		      // cout<<endl<<respuesta.substr(3,6)<<endl;
 
-		        //Veces que encuentra un tweet en el json si encuentra menos de 3 es seguro que ya no quedan tweets por mirar
-		        int repeticiones=0;
-		        //cout<<respuesta.substr(3,11)<<endl<<endl<<endl<<endl<<endl<<endl<<endl<<endl<<endl<<endl;
-		        if(respuesta.length()>50 && respuesta.substr(2,6)!="errors"){
-		        		tweetscompletos=false;
-		        		cout<<"Mirando tweets desde "<<ultimotweet<<endl;
+		        if(respuesta.substr(2,6)!="errors" && respuesta.length()>50 ){
+	        		tweetscompletos=false;
+	        		cout<<"Mirando tweets desde "<<ultimotweet<<endl;
 
-				        //Dividir el json de respuesta entre tweets//////////////////////////////////////////////
-				        Tweet tweet;
-				        size_t pos = 0;
-						string token;
-						while ((pos = respuesta.find("created_at")) !=string::npos) {
-							repeticiones++;
-						    token = respuesta.substr(0, pos);
-						    //Quitamos el tweet original del retwiteado (esto no borra los rt si no que por culpa del json el tweet aparece 2 veces cuando esta retuiteado, deja 1)
-						    if(!token.find("retweeted_status")!=string::npos){
-						    	tweet=StringToTweet(token);
+			        //Dividir el json de respuesta entre tweets//////////////////////////////////////////////
+			        Tweet tweet;
+			        size_t pos = 0;
+					string token;
 
-
-						    	//pasamos a minusculas el tweet y le quitamos los acentos
-						    	for(int i = 0; i<tweet.texto.length(); i++)
-      								tweet.texto[i] = tolower(tweet.texto[i]);
-      							QuitarAcentos(tweet.texto);
+					//Veces que encuentra un tweet en el json si encuentra menos de 3 es seguro que ya no quedan tweets por mirar
+		        	int repeticiones=0;
+					while ((pos = respuesta.find("created_at")) !=string::npos) {
+						repeticiones++;
+					    token = respuesta.substr(0, pos);
+					    //Quitamos el tweet original del retwiteado (esto no borra los rt si no que por culpa del json el tweet aparece 2 veces cuando esta retuiteado, deja 1)
+					    if(!token.find("retweeted_status")!=string::npos && token.length()>35){
+					    	tweet=StringToTweet(token);
+					    	///Obtener el id del tweet/////////////////////
+					    	ultimotweet=token.substr(token.find("id")+4,token.find("id_str")-token.find("id")-6);
+							tweetsMirados++;
 
 
-						    	if(tweet.texto.find(palabrabuscada)!=string::npos){
-						    			vecesQueApareceLaPalabra++;
-
-						    			//Sumar a la fecha 1 si lo encuentra
-						    			unordered_map<int,int>::const_iterator got = VecesPorFecha.find (tweet.fecha);
-  										if (got == VecesPorFecha.end() ){
-						    				pair<int,int> parfehcanumerotweets (tweet.fecha,1);
-						    				VecesPorFecha.insert(parfehcanumerotweets);
-					    				}else
-						    				VecesPorFecha.at(tweet.fecha)=VecesPorFecha.at(tweet.fecha)+1;
-						    		}
-						    }
-						    respuesta.erase(0, pos + 10);
-						}
+					    	//pasamos a minusculas el tweet y le quitamos los acentos
+					    	for(int i = 0; i<tweet.texto.length(); i++)
+  								tweet.texto[i] = tolower(tweet.texto[i]);
+  							QuitarAcentos(tweet.texto);
 
 
-
-		        		//Veces que encuentra un tweet en el json si encuentra menos de 3 es seguro que ya no quedan tweets por mirar
-						if(repeticiones<3)
-							tweetscompletos=true;;
+					    	if(tweet.texto.find(palabrabuscada)!=string::npos){
+					    		vecesQueApareceLaPalabra++;
+				    			//Sumar a la fecha 1 si lo encuentra
+				    			unordered_map<int,int>::const_iterator got = VecesPorFecha.find (tweet.fecha);
+									if (got == VecesPorFecha.end() ){
+				    				pair<int,int> parfehcanumerotweets (tweet.fecha,1);
+				    				VecesPorFecha.insert(parfehcanumerotweets);
+			    				}else
+				    				VecesPorFecha.at(tweet.fecha)=VecesPorFecha.at(tweet.fecha)+1;
+					    	}
+					    }
+					    respuesta.erase(0, pos + 10);
+					}
+	        		//Veces que encuentra un tweet en el json si encuentra menos de 3 es seguro que ya no quedan tweets por mirar
+					if(repeticiones<3)
+						tweetscompletos=true;
 
 		    	}else{
-			    	printf( "\nSe acabó\n" );
 			    	cout<<respuesta<<endl;
-			    	twitterObj.getOAuth().setConsumerKey( std::string( "2Kdg60HDmZEu2NXIp7MRMBQIm" ) );
-   					twitterObj.getOAuth().setConsumerSecret( std::string( "IQcdiWnJd1bsWHytbLmSZa4aNxlPJ5Jr9ZjwOPjiDp31Tyactn" ) );
-			    	//tweetscompletos=true;
-			       // twitterObj.getLastCurlError( replyMsg );
+			    	if(respuesta.substr(2,6)=="errors")
+			    	{
+				    	twitterObj.getOAuth().setConsumerKey( std::string( "2Kdg60HDmZEu2NXIp7MRMBQIm" ) );
+	   					twitterObj.getOAuth().setConsumerSecret( std::string( "IQcdiWnJd1bsWHytbLmSZa4aNxlPJ5Jr9ZjwOPjiDp31Tyactn" ) );
+						cout << "SE HA CAMBIADO DINAMICAMENTE EL APP KEY, A VER SI ASI SIGUE FUNCIONANDO" << endl;
+					}
 		    	}  
 		 	}
-	     }
+	    }
 
 
 
 	     ///////////////////////////////////////////////////////
 	    //Obtener los amigos de un usuario/////////////////////
 	    ///////////////////////////////////////////////////////
-	     if(UsuariosSinMirar.size()<100){
+	    if(UsuariosSinMirar.size()<100){
 
-	     	int UsuarioID=UsuariosMirados[iteradorusuarios];
+	    	string UsuarioID=UsuariosMirados[iteradorusuarios];
 	     	iteradorusuarios++;
-	     	string usuarioamirar=to_string(UsuarioID);
-		    replyMsg = "";
-		    tmpStr = "techcrunch";
-		    if( twitterObj.friendsIdsGet( "",usuarioamirar,true ) && usuariosMirados<=MAX_BUSCARAMIGOS){
 
-		    	cout<<"Buscando amigos de "<<usuarioamirar<<endl;
+		    replyMsg = "";
+		    if( twitterObj.friendsIdsGet( "",UsuarioID,true ) && usuariosMirados<=MAX_BUSCARAMIGOS){
+
+		    	cout<<"Buscando amigos de "<<UsuarioID<<endl;
 		        //Pedimos los ids de los usuarios y los separamos en un vector/////////
 		        twitterObj.getLastWebResponse( replyMsg );
-		      //  cout<<replyMsg;
 		        string respuesta=replyMsg.c_str();
 		        if(respuesta.find("error") !=string::npos)
 		        	cout<<respuesta<<endl;
@@ -319,20 +314,24 @@ int main( int argc, char* argv[] )
 		        for (int i=0; i<ids.size(); i++){
 		        	EstaEnUsuariosSinMirar=false;
 		       		EstaEnUsuariosMirados=false;
-		        	int EnteroId=atoi(ids[i].c_str());
 
+		        	//int EnteroId=atoi(ids[i].c_str());
+		        	string id = ids[i];
 
 		        	for (int t=0; t<UsuariosSinMirar.size(); t++)
-		        		if(EnteroId==UsuariosSinMirar[t])
+		        		if(id==UsuariosSinMirar[t])
 		        			EstaEnUsuariosSinMirar=true;
 
 
 		        	for (int j=0; j<UsuariosMirados.size(); j++)
-		        		if(EnteroId==UsuariosMirados[j])
+		        		if(id==UsuariosMirados[j])
 		        			EstaEnUsuariosMirados=true;
 		        	//Si no esta en ninguna de las 2 listas lo añadimos a la lista que vamos a mirar
 		        	if(!EstaEnUsuariosMirados && !EstaEnUsuariosSinMirar)
-		        	 	UsuariosSinMirar.push_back(EnteroId);	
+		        	{
+		        		//cout << "SE VA A AÑADIR " << EnteroId << endl;
+		        	 	UsuariosSinMirar.push_back(id);	
+		        	}
 				}
 		    }
 		}
