@@ -20,10 +20,10 @@ using namespace std;
 ///////////////////////////////////////////////////////////////
 //Constantes globales
 //////////////////////////////////////////////////////////////
-const int MAX_USUARIOS_A_MIRAR=10;
+//const int MAX_USUARIOS_A_MIRAR=50;
 //const int MAX_BUSCARAMIGOS=2; //maximo de veces que se buscan amigos si es 1 solo buscara los amigos de jorgeazorin si es mas busca tambien los amigos de los amigos de jorgeazorin
-const string USUARIO_INICIO="144533310"; //Este es @jorgeazorin
-string palabrabuscada="ébola";
+const string USUARIO_INICIO="jorgeazorin"; //Este es @jorgeazorin
+//string palabrabuscada="ébola";
 
 //////////////////////////////////////////////////////////////
 //Clase Tweet
@@ -136,7 +136,7 @@ void QuitarAcentos(string& texto){
 }
 
 
-vector<string> obtenerUsuarios() {
+vector<string> obtenerUsuarios(int max) {
 	twitCurl twitterObj;
 
 
@@ -166,7 +166,7 @@ vector<string> obtenerUsuarios() {
 	bool EstaEnUsuariosMirados=false;
 	string UsuarioID;
 
-    while(usuariosSinMirar.size()<MAX_USUARIOS_A_MIRAR)
+    while(usuariosSinMirar.size()<max)
     {
 
     	//cogemos el usuario de la head, y lo borramos
@@ -175,7 +175,7 @@ vector<string> obtenerUsuarios() {
     	//lo guardamos en usuariosMirados para recordarlo
        	usuariosMirados.push_back(UsuarioID);
 
-		twitterObj.friendsIdsGet( "",USUARIO_INICIO,true );
+		twitterObj.friendsIdsGet( "",USUARIO_INICIO,false );
 	 	//Pedimos los ids de los usuarios y los separamos en un vector/////////
 	 	replyMsg = "";
 	    twitterObj.getLastWebResponse( replyMsg );
@@ -233,12 +233,30 @@ void crearCSV(unordered_map<int, int> VecesPorFecha) {
     Fichero.close();
 }
 
+void uso(const char* nombre_programa) {
+	cout << "Uso: " << nombre_programa << " palabra num_usuarios num_hilos" << endl;
+	cout << "Ejemplo: ./" << nombre_programa << " fútbol 20 16" << endl;
+}
+
 
 //////////////////////////////////////////////////////////////
 //                        MAIN                            ////
 //////////////////////////////////////////////////////////////
 int main( int argc, char* argv[] )
 {
+	string palabrabuscada;
+	int MAX_USUARIOS_A_MIRAR;
+	int NUM_HILOS;
+	if(argc==4) {
+		palabrabuscada = argv[1];
+		MAX_USUARIOS_A_MIRAR = atoi(argv[2]);
+		NUM_HILOS = atoi(argv[3]);
+	}
+	else
+	{
+		uso(argv[0]);
+		return 1;
+	}
 	//***C++11 Style:***
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
@@ -247,7 +265,9 @@ int main( int argc, char* argv[] )
 		palabrabuscada[i] = tolower(palabrabuscada[i]);
 
 	//le quitamos los acentos a la palabra
-	QuitarAcentos(palabrabuscada);			
+	QuitarAcentos(palabrabuscada);		
+
+	cout << "Se va a buscar la cadena " << palabrabuscada << endl;
 
 	//VARIABLES CRITICAS
 	//numero de usuarios que se han mirado hasta el momento
@@ -266,7 +286,7 @@ int main( int argc, char* argv[] )
 
 	//conseguimos una lista de usuarios
     vector<string> usuarios;
-    usuarios = obtenerUsuarios();
+    usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR);
 
 
 	//AHORA COGER UNO A UNO AL USUARIO Y LEER SUS TUITS
@@ -276,7 +296,9 @@ int main( int argc, char* argv[] )
 
 
     //PARALELIZANDO LA COSA
-	omp_set_num_threads(omp_get_num_procs());
+	//omp_set_num_threads(omp_get_num_procs());
+	//if(NUM_HILOS>=0 && NUM_HILOS<omp_get_num_procs())
+	omp_set_num_threads((NUM_HILOS<omp_get_num_procs())?NUM_HILOS:omp_get_num_procs());
 	//omp_set_num_threads(0);
 
 	//para conseguir el correcto numero usuariosMirados
@@ -358,8 +380,8 @@ int main( int argc, char* argv[] )
 					    			unordered_map<int,int>::const_iterator got = VecesPorFecha.find (tweet.fecha);
 									if (got == VecesPorFecha.end() )
 									{
-				    					pair<int,int> parfehcanumerotweets (tweet.fecha,1);
-				    					VecesPorFecha.insert(parfehcanumerotweets);
+				    					pair<int,int> parfechanumerotweets (tweet.fecha,1);
+				    					VecesPorFecha.insert(parfechanumerotweets);
 			    					}
 			    					else
 				    					VecesPorFecha.at(tweet.fecha)=VecesPorFecha.at(tweet.fecha)+1;
