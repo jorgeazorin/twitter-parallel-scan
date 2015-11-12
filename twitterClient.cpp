@@ -21,7 +21,7 @@ using namespace std;
 //Constantes globales
 //////////////////////////////////////////////////////////////
 const int MAX_USUARIOS_A_MIRAR=10;
-const int MAX_BUSCARAMIGOS=2; //maximo de veces que se buscan amigos si es 1 solo buscara los amigos de jorgeazorin si es mas busca tambien los amigos de los amigos de jorgeazorin
+//const int MAX_BUSCARAMIGOS=2; //maximo de veces que se buscan amigos si es 1 solo buscara los amigos de jorgeazorin si es mas busca tambien los amigos de los amigos de jorgeazorin
 const string USUARIO_INICIO="144533310"; //Este es @jorgeazorin
 string palabrabuscada="ébola";
 
@@ -141,10 +141,10 @@ vector<string> obtenerUsuarios() {
 
 
 	//en este vector guardaremos los usuarios que aun no hemos mirado y leido sus tuits
-	vector<string> UsuariosSinMirar;
+	vector<string> usuariosSinMirar;
 
 	//en este vector se van almacenando los usuarios que ya hayamos visto
-	vector<string> UsuariosMirados;
+	vector<string> usuariosMirados;
 
 	//INICIALIZAR EL OBJETO DE TWITCURL
 	twitterObj.setTwitterUsername( "jorgeazorin" );
@@ -155,50 +155,60 @@ vector<string> obtenerUsuarios() {
 
 
     //Añadimos el usuario Inicial a la lista
-    UsuariosSinMirar.push_back(USUARIO_INICIO);
+    usuariosSinMirar.push_back(USUARIO_INICIO);
+
+    string replyMsg;
+    string respuesta;
+    vector<string> respuestas;
+    vector<string> ids;
+
+   	bool EstaEnUsuariosSinMirar=false;
+	bool EstaEnUsuariosMirados=false;
+	string UsuarioID;
+
+    while(usuariosSinMirar.size()<MAX_USUARIOS_A_MIRAR)
+    {
+
+    	//cogemos el usuario de la head, y lo borramos
+    	UsuarioID=*usuariosSinMirar.begin();
+    	usuariosSinMirar.erase(usuariosSinMirar.begin());
+    	//lo guardamos en usuariosMirados para recordarlo
+       	usuariosMirados.push_back(UsuarioID);
+
+		twitterObj.friendsIdsGet( "",USUARIO_INICIO,true );
+	 	//Pedimos los ids de los usuarios y los separamos en un vector/////////
+	 	replyMsg = "";
+	    twitterObj.getLastWebResponse( replyMsg );
+	    respuesta=replyMsg.c_str();
+	    //cout << "LA RESPUESTA ES " << endl << respuesta << endl;
+	    respuestas= split(respuesta,']');
+	    respuesta=respuestas[0].substr(8,respuestas[0].length()-8);
+	    ids= split(respuesta,',');
 
 
-	twitterObj.friendsIdsGet( "",USUARIO_INICIO,true );
- 	//Pedimos los ids de los usuarios y los separamos en un vector/////////
- 	string replyMsg = "";
-    twitterObj.getLastWebResponse( replyMsg );
-    string respuesta=replyMsg.c_str();
-    //cout << "LA RESPUESTA ES " << endl << respuesta << endl;
-    vector<string> respuestas= split(respuesta,']');
-    respuesta=respuestas[0].substr(8,respuestas[0].length()-8);
-    vector<string> ids= split(respuesta,',');
+	    for (int i=0; i<ids.size(); i++){
+	    	EstaEnUsuariosSinMirar=false;
+	   		EstaEnUsuariosMirados=false;
 
-   
-    //Miramos si lo hemos mirado y si esta por mirar/////////////////////
-    bool EstaEnUsuariosSinMirar=false;
-    bool EstaEnUsuariosMirados=false;
+	    	string id = ids[i];
 
-    //AQUI QUIZAS PODRIAMOS PONER PARALELIZACION PRAGMA PARALLEL FOR
-    //AUNQUE QUIZAS AL ESTAR HACIENDO PUSH_BACKS EN USUARIOSSINMIRAR
-    //PASE ALGO, NUSENUSE
-    for (int i=0; i<ids.size(); i++){
-    	EstaEnUsuariosSinMirar=false;
-   		EstaEnUsuariosMirados=false;
-
-    	//int EnteroId=atoi(ids[i].c_str());
-    	string id = ids[i];
-
-    	for (int t=0; t<UsuariosSinMirar.size(); t++)
-    		if(id==UsuariosSinMirar[t])
-    			EstaEnUsuariosSinMirar=true;
+	    	for (int t=0; t<usuariosSinMirar.size(); t++)
+	    		if(id==usuariosSinMirar[t])
+	    			EstaEnUsuariosSinMirar=true;
 
 
-    	for (int j=0; j<UsuariosMirados.size(); j++)
-    		if(id==UsuariosMirados[j])
-    			EstaEnUsuariosMirados=true;
-    	//Si no esta en ninguna de las 2 listas lo añadimos a la lista que vamos a mirar
-    	if(!EstaEnUsuariosMirados && !EstaEnUsuariosSinMirar)
-    	{
-    	 	UsuariosSinMirar.push_back(id);	
-    	}
+	    	for (int j=0; j<usuariosMirados.size(); j++)
+	    		if(id==usuariosMirados[j])
+	    			EstaEnUsuariosMirados=true;
+	    	//Si no esta en ninguna de las 2 listas lo añadimos a la lista que vamos a mirar
+	    	if(!EstaEnUsuariosMirados && !EstaEnUsuariosSinMirar)
+	    	{
+	    	 	usuariosSinMirar.push_back(id);	
+	    	}
+		}
 	}
 
-	return UsuariosSinMirar;
+	return usuariosSinMirar;
 }
 
 void crearCSV(unordered_map<int, int> VecesPorFecha) {
@@ -269,7 +279,7 @@ int main( int argc, char* argv[] )
 	omp_set_num_threads(omp_get_num_procs());
 	//omp_set_num_threads(0);
 
-	//para conseguir el correcto numero usuariosmirados
+	//para conseguir el correcto numero usuariosMirados
 	//hay que ir sumando en la zona critica
 	int usuariosMiradosThread;
 
@@ -290,6 +300,8 @@ int main( int argc, char* argv[] )
 		string replyMsg="";
 	    for(int i=omp_get_thread_num();i<usuarios.size() && i<MAX_USUARIOS_A_MIRAR;i+=omp_get_num_threads()) 
 	    {
+	    	if(i==0)
+	    		cout << omp_get_num_threads() << " HILOS EN EJECUCION" << endl;
 	    	twitCurl api;
 		    //INICIALIZAR EL OBJETO DE TWITCURL
 			api.setTwitterUsername( "jorgeazorin" );
@@ -300,7 +312,7 @@ int main( int argc, char* argv[] )
 	    	usuariosMiradosThread++;
 	    	string UsuarioID = usuarios[i];
 	    	//cout << "Faltan por analizar los tweets de " << (MAX_USUARIOS_A_MIRAR-i) << " usuarios" << endl;
-	    	cout << "EL THREAD " << omp_get_thread_num() << " VA A MIRAR EL USER " << UsuarioID << "EN LA ITERACION " << i << endl;
+	    	//cout << "EL THREAD " << omp_get_thread_num() << " VA A MIRAR EL USER " << UsuarioID << "EN LA ITERACION " << i << endl;
 
 	    	
 		    bool tweetscompletos=false;
