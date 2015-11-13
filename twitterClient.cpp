@@ -8,10 +8,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <ctype.h>
-
 #include <chrono> //para los cronometros
-
-
 #include <omp.h> 
 using namespace std;
 
@@ -131,9 +128,16 @@ void QuitarAcentos(string& texto){
 }
 
 
+
+
+//////////////////////////////////////////////////////////////
+//Modulo para Buscar amigos
+/////////////////////////////////////////////////////////////
 vector<string> obtenerUsuarios(int max) {
 	//en este vector guardaremos los usuarios que vamos encontrando
-	vector<string> usuarios;
+	vector<string> usuarios; //Lista de usuarios final
+	string respuesta; //La respuesta del api de de twitter
+    vector<string> respuestas, ids; //vector de la respuesta dividida en ids y los ids finales
 
 	//INICIALIZAR EL OBJETO DE TWITCURL
 	twitCurl twitterObj;
@@ -143,45 +147,38 @@ vector<string> obtenerUsuarios(int max) {
  	twitterObj.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
     //Añadimos el usuario Inicial a la lista
     usuarios.push_back(USUARIO_INICIO);
-
-    string replyMsg, respuesta;
-    vector<string> respuestas, ids;
-	int i=0;
-    while(usuarios.size()<max)
-    {
-
+    
+    for(int i=0; usuarios.size()<max; i++){
     	//cogemos el usuario de la head, y lo borramos
     	string UsuarioID=usuarios[i];
-		twitterObj.friendsIdsGet( "",UsuarioID,true);
-
+    	string replyMsg = "";
+	 	
 	 	//Pedimos los ids de los usuarios y los separamos en un vector/////////
-	 	replyMsg = "";
+		twitterObj.friendsIdsGet( "",UsuarioID,true);
 	    twitterObj.getLastWebResponse( replyMsg );
 	    respuesta=replyMsg.c_str();
 	    respuestas= split(respuesta,']');
 	    respuesta=respuestas[0].substr(8,respuestas[0].length()-8);
 	    ids= split(respuesta,',');
 
+	    //Si no está ya en la lista de usuarios lo añadimos
 	    for (int i=0; i<ids.size(); i++){
 	   		bool EstaEnUsuarios=false;
-
-	    	string id = ids[i];
-
 	    	for (int t=0; t<usuarios.size(); t++)
-	    		if(id==usuarios[t])
+	    		if(ids[i]==usuarios[t])
 	    			EstaEnUsuarios=true;
-
-	    	//Si no esta en la lista de usuarios
 	    	if(!EstaEnUsuarios)
-	    	{
-	    	 	usuarios.push_back(id);
-	    	}
+	    	 	usuarios.push_back(ids[i]);
 		}
 	}
-	cout<<"Lista de usuarios size:"+usuarios.size();
+	cout<<"Lista de usuarios size: "+usuarios.size();
 	return usuarios;
 }
 
+
+//////////////////////////////////////////////////////////////
+//Modulo para convertir el resultado en un csv
+/////////////////////////////////////////////////////////////
 void crearCSV(unordered_map<int, int> VecesPorFecha) {
 	//Crear un archivo con los resultados//////////////////
     ofstream Fichero("datos.csv");         //Opening file to print info to
@@ -203,6 +200,10 @@ void crearCSV(unordered_map<int, int> VecesPorFecha) {
     //Cerrar fichero
     Fichero.close();
 }
+
+
+
+
 
 void uso(const char* nombre_programa) {
 	cout << "Uso: " << nombre_programa << " palabra num_usuarios num_hilos" << endl;
@@ -228,7 +229,6 @@ int main( int argc, char* argv[] )
 		uso(argv[0]);
 		return 1;
 	}
-	//***C++11 Style:***
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     //pasamos a minusculas la palabra a buscar
@@ -394,18 +394,10 @@ int main( int argc, char* argv[] )
 			vecesQueApareceLaPalabra+=vecesQueApareceLaPalabraThread;
 		}
 	}
-
-
 	crearCSV(VecesPorFecha);
-
     std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
-
     cout<<endl<<endl<<"Total tweets mirados "<<tweetsMirados << " de "<< usuariosMirados <<" usuarios"<<endl;
     cout<<"la palabra "<<palabrabuscada<<" aparece "<<vecesQueApareceLaPalabra<<" veces"<<endl;
-   
-
-	//std::cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << " microsegundos" << std::endl;
-	//std::cout << "Time difference = " << chrono::duration_cast<chrono::nanoseconds> (end - begin).count() << " nanosegundos" << std::endl;
-	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::milliseconds> (end - begin).count() << " milisegundos" << std::endl;
+   	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::milliseconds> (end - begin).count() << " milisegundos" << std::endl;
 	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::seconds> (end - begin).count() << " segundos" << std::endl;
 }
