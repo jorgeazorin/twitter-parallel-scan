@@ -211,6 +211,118 @@ void uso(const char* nombre_programa) {
 }
 
 
+
+//////////////////////////////////////////////////////////////
+//Modulo para quitar acentos y poner en minúsculas
+/////////////////////////////////////////////////////////////
+void limpiarpalabra(string& palabrabuscada){
+	for(int i = 0; i<palabrabuscada.length(); i++)
+	palabrabuscada[i] = tolower(palabrabuscada[i]);
+
+	//le quitamos los acentos a la palabra
+	QuitarAcentos(palabrabuscada);		
+}
+
+
+
+
+
+
+
+
+
+void BuscarTweetsUsuario(string palabrabuscada, unordered_map<int, int>& VecesPorFecha, int& usuariosMiradosThread, int& tweetsMiradosThread, int& vecesQueApareceLaPalabraThread, twitCurl& api, string& UsuarioID ){
+
+	//vamos a usar 2 api keys, si las usamos las 2 y sigue habiendo restriccion, fin del programa...
+	int num_api_key=0;
+    
+    bool tweetscompletos=false;
+    string ultimotweet="";
+    ///Mientas la respuesta no sea un json vacio va a ir pidiendo tweets desde el ultimo recibido
+
+    while(!tweetscompletos) {
+    	tweetscompletos=true;
+    	if( api.timelineUserGet(true, false,200,UsuarioID,true,ultimotweet)){//trimUser //retweets // nº //usuario//esusuarioID//ultimotweet
+	        string replyMsg="";
+	        api.getLastWebResponse( replyMsg );
+	        string respuesta=replyMsg.c_str();
+	        if(respuesta.substr(2,6)!="errors" && respuesta.length()>50 ){
+        		tweetscompletos=false;
+        		//cout<<"Mirando tweets desde "<<ultimotweet<<endl;
+
+		        //Dividir el json de respuesta entre tweets//////////////////////////////////////////////
+		        Tweet tweet;
+		        size_t pos = 0;
+				string token;
+
+				//Veces que encuentra un tweet en el json si encuentra menos de 3 es seguro que ya no quedan tweets por mirar
+	        	int repeticiones=0;
+				while ((pos = respuesta.find("created_at")) !=string::npos) {
+					repeticiones++;
+				    token = respuesta.substr(0, pos);
+				    //Quitamos el tweet original del retwiteado (esto no borra los rt si no que por culpa del json el tweet aparece 2 veces cuando esta retuiteado, deja 1)
+				    if(!token.find("retweeted_status")!=string::npos && token.length()>35){
+				    	tweet=StringToTweet(token);
+				    	///Obtener el id del tweet/////////////////////
+				    	ultimotweet=token.substr(token.find("id")+4,token.find("id_str")-token.find("id")-6);
+						tweetsMiradosThread++;
+
+
+				    	//pasamos a minusculas el tweet y le quitamos los acentos
+				    	for(int i = 0; i<tweet.texto.length(); i++)
+								tweet.texto[i] = tolower(tweet.texto[i]);
+						QuitarAcentos(tweet.texto);
+
+
+				    	if(tweet.texto.find(palabrabuscada)!=string::npos){
+				    		vecesQueApareceLaPalabraThread++;
+				    		//cout << "MENSAJE: " << tweet.texto << endl;
+			    			//Sumar a la fecha 1 si lo encuentra
+			    			unordered_map<int,int>::const_iterator got = VecesPorFecha.find (tweet.fecha);
+							if (got == VecesPorFecha.end() )
+							{
+		    					pair<int,int> parfechanumerotweets (tweet.fecha,1);
+		    					VecesPorFecha.insert(parfechanumerotweets);
+	    					}
+	    					else
+		    					VecesPorFecha.at(tweet.fecha)=VecesPorFecha.at(tweet.fecha)+1;
+				    	}
+				    }
+				    respuesta.erase(0, pos + 10);
+				}
+        		//Veces que encuentra un tweet en el json si encuentra menos de 3 es seguro que ya no quedan tweets por mirar
+				if(repeticiones<3)
+					tweetscompletos=true;
+
+	    	}else{
+		    	if(respuesta.substr(2,6)=="errors")
+		    	{
+		    		num_api_key++;
+		    		if(num_api_key>1) //ya ha probado las 2 api key, asi que las dos estan restringidas
+		    		{
+		    			cout << "Las dos keys se han restringido, habrá que esperar 15 minutos..." << endl;
+		    			tweetscompletos=true; //ya no podemos leer tuits
+		    		}
+		    		cout<<respuesta<<endl;
+		    		tweetscompletos=false; //HAY QUE VOLVER A PONERLO EN FALSO, para que siga intentando leer tuits
+		    		api.setTwitterUsername( "jorgeazorin" );
+					api.setTwitterPassword( "179832" );
+			    	api.getOAuth().setConsumerKey( std::string( "2Kdg60HDmZEu2NXIp7MRMBQIm" ) );
+   					api.getOAuth().setConsumerSecret( std::string( "IQcdiWnJd1bsWHytbLmSZa4aNxlPJ5Jr9ZjwOPjiDp31Tyactn" ) );
+					//cout << "Se ha cambiado el App Key, para saltarse la limitación del API de twitter." << endl;
+				}
+	    	}  
+	 	}
+    }
+}
+
+
+
+
+
+
+
+
 //////////////////////////////////////////////////////////////
 //                        MAIN                            ////
 //////////////////////////////////////////////////////////////
@@ -229,16 +341,16 @@ int main( int argc, char* argv[] )
 		uso(argv[0]);
 		return 1;
 	}
+
+
+
+	//Empezamos a contar el tiempo que dura la ejecución
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-    //pasamos a minusculas la palabra a buscar
-	for(int i = 0; i<palabrabuscada.length(); i++)
-		palabrabuscada[i] = tolower(palabrabuscada[i]);
+	//Quitamos acentos y ponemos en minusculas la palabra a buscar
+	limpiarpalabra(palabrabuscada) ;
+	cout << "Se va a buscar la cadena " << palabrabuscada<< endl;
 
-	//le quitamos los acentos a la palabra
-	QuitarAcentos(palabrabuscada);		
-
-	cout << "Se va a buscar la cadena " << palabrabuscada << endl;
 
 	//VARIABLES CRITICAS
 	unsigned int usuariosMirados=0; 			
@@ -252,147 +364,53 @@ int main( int argc, char* argv[] )
     vector<string> usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR);
 
 
-	//AHORA COGER UNO A UNO AL USUARIO Y LEER SUS TUITS
-	///////////////////////////////////////////////////////
-    //Obtener los tweets de un usuario/////////////////////
-    ///////////////////////////////////////////////////////
-
-
     //PARALELIZANDO LA COSA
-	//omp_set_num_threads(omp_get_num_procs());
-	//if(NUM_HILOS>=0 && NUM_HILOS<omp_get_num_procs())
 	omp_set_num_threads((NUM_HILOS<omp_get_num_procs())?NUM_HILOS:omp_get_num_procs());
-	//omp_set_num_threads(0);
+	int usuariosMiradosThread; //Número usuarios mirados por thread
+	int tweetsMiradosThread;   //Número tweets mirados por thread
+	int vecesQueApareceLaPalabraThread; //Número de veces que esta la palabra buscada por thread
+	unordered_map<int, int> VecesPorFechaThread;
 
-	//para conseguir el correcto numero usuariosMirados
-	//hay que ir sumando en la zona critica
-	int usuariosMiradosThread;
+	
 
-	//para conseguir el numero correcto de tweets en thread
-	//despues en la zoma critica se les añade
-	int tweetsMiradosThread;
-
-	//para conseguir el numero correcto de veces en thread
-	//despues en la zona critica se les añade
-	int vecesQueApareceLaPalabraThread;
-
-
-	#pragma omp parallel private(usuariosMiradosThread,tweetsMiradosThread,vecesQueApareceLaPalabraThread)
+	#pragma omp parallel private(usuariosMiradosThread,tweetsMiradosThread,vecesQueApareceLaPalabraThread,VecesPorFechaThread)
 	{
-		usuariosMiradosThread=0;
+		cout<<endl << omp_get_num_threads() << " HILOS EN EJECUCION" << endl;
+		usuariosMiradosThread=0; 
 		tweetsMiradosThread=0;
 		vecesQueApareceLaPalabraThread=0;
-		string replyMsg="";
 
-		//vamos a usar 2 api keys, si las usamos las 2 y sigue habiendo restriccion, fin del programa...
-		int num_api_key=0;
-
-		twitCurl api;
 	    //INICIALIZAR EL OBJETO DE TWITCURL
+		twitCurl api;
 		api.setTwitterUsername( "jorgeazorin" );
 	    api.setTwitterPassword( "179832" );
 		api.getOAuth().setConsumerKey( std::string( "ycPUlEPhZVdxushiDdXbNcDUH" ) );
 	 	api.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
 
-	    for(int i=omp_get_thread_num();i<usuarios.size() && i<MAX_USUARIOS_A_MIRAR;i+=omp_get_num_threads()) 
-	    {
-	    	if(i==0)
-	    		cout<<endl << omp_get_num_threads() << " HILOS EN EJECUCION" << endl;
-
+	    for(int i=omp_get_thread_num();i<usuarios.size() && i<MAX_USUARIOS_A_MIRAR;i+=omp_get_num_threads()){
 	    	usuariosMiradosThread++;
 	    	string UsuarioID = usuarios[i];
 	    	cout << "LEYENDO TUITS DEL USUARIO " << UsuarioID <<" en el hilo "<<omp_get_thread_num() << endl;
-	    	//cout << "Faltan por analizar los tweets de " << (MAX_USUARIOS_A_MIRAR-i) << " usuarios" << endl;
-	    	//cout << "EL THREAD " << omp_get_thread_num() << " VA A MIRAR EL USER " << UsuarioID << "EN LA ITERACION " << i << endl;
-
-	    	
-		    bool tweetscompletos=false;
-		    string ultimotweet="";
-		    ///Mientas la respuesta no sea un json vacio va a ir pidiendo tweets desde el ultimo recibido
-
-		    while(!tweetscompletos) {
-		    	//cout << "...";
-		    	tweetscompletos=true;
-		    	if( api.timelineUserGet(true, false,200,UsuarioID,true,ultimotweet)){//trimUser //retweets // nº //usuario//esusuarioID//ultimotweet
-			        api.getLastWebResponse( replyMsg );
-			        string respuesta=replyMsg.c_str();
-			        if(respuesta.substr(2,6)!="errors" && respuesta.length()>50 ){
-		        		tweetscompletos=false;
-		        		//cout<<"Mirando tweets desde "<<ultimotweet<<endl;
-
-				        //Dividir el json de respuesta entre tweets//////////////////////////////////////////////
-				        Tweet tweet;
-				        size_t pos = 0;
-						string token;
-
-						//Veces que encuentra un tweet en el json si encuentra menos de 3 es seguro que ya no quedan tweets por mirar
-			        	int repeticiones=0;
-						while ((pos = respuesta.find("created_at")) !=string::npos) {
-							repeticiones++;
-						    token = respuesta.substr(0, pos);
-						    //Quitamos el tweet original del retwiteado (esto no borra los rt si no que por culpa del json el tweet aparece 2 veces cuando esta retuiteado, deja 1)
-						    if(!token.find("retweeted_status")!=string::npos && token.length()>35){
-						    	tweet=StringToTweet(token);
-						    	///Obtener el id del tweet/////////////////////
-						    	ultimotweet=token.substr(token.find("id")+4,token.find("id_str")-token.find("id")-6);
-								tweetsMiradosThread++;
-
-
-						    	//pasamos a minusculas el tweet y le quitamos los acentos
-						    	for(int i = 0; i<tweet.texto.length(); i++)
-										tweet.texto[i] = tolower(tweet.texto[i]);
-								QuitarAcentos(tweet.texto);
-
-
-						    	if(tweet.texto.find(palabrabuscada)!=string::npos){
-						    		vecesQueApareceLaPalabraThread++;
-						    		//cout << "MENSAJE: " << tweet.texto << endl;
-					    			//Sumar a la fecha 1 si lo encuentra
-					    			unordered_map<int,int>::const_iterator got = VecesPorFecha.find (tweet.fecha);
-									if (got == VecesPorFecha.end() )
-									{
-				    					pair<int,int> parfechanumerotweets (tweet.fecha,1);
-				    					VecesPorFecha.insert(parfechanumerotweets);
-			    					}
-			    					else
-				    					VecesPorFecha.at(tweet.fecha)=VecesPorFecha.at(tweet.fecha)+1;
-						    	}
-						    }
-						    respuesta.erase(0, pos + 10);
-						}
-		        		//Veces que encuentra un tweet en el json si encuentra menos de 3 es seguro que ya no quedan tweets por mirar
-						if(repeticiones<3)
-							tweetscompletos=true;
-
-			    	}else{
-				    	if(respuesta.substr(2,6)=="errors")
-				    	{
-				    		num_api_key++;
-				    		if(num_api_key>1) //ya ha probado las 2 api key, asi que las dos estan restringidas
-				    		{
-				    			cout << "Las dos keys se han restringido, habrá que esperar 15 minutos..." << endl;
-				    			//break;
-				    			tweetscompletos=true; //ya no podemos leer tuits
-				    		}
-				    		cout<<respuesta<<endl;
-				    		tweetscompletos=false; //HAY QUE VOLVER A PONERLO EN FALSO, para que siga intentando leer tuits
-				    		api.setTwitterUsername( "jorgeazorin" );
-    						api.setTwitterPassword( "179832" );
-					    	api.getOAuth().setConsumerKey( std::string( "2Kdg60HDmZEu2NXIp7MRMBQIm" ) );
-		   					api.getOAuth().setConsumerSecret( std::string( "IQcdiWnJd1bsWHytbLmSZa4aNxlPJ5Jr9ZjwOPjiDp31Tyactn" ) );
-							//cout << "Se ha cambiado el App Key, para saltarse la limitación del API de twitter." << endl;
-						}
-			    	}  
-			 	}
-
-		    }
+	    	BuscarTweetsUsuario(palabrabuscada,VecesPorFechaThread, usuariosMiradosThread, tweetsMiradosThread, vecesQueApareceLaPalabraThread, api, UsuarioID );
 		}
 		#pragma omp critical
 		{
 			usuariosMirados+=usuariosMiradosThread;
 			tweetsMirados+=tweetsMiradosThread;
 			vecesQueApareceLaPalabra+=vecesQueApareceLaPalabraThread;
-		}
+		    for ( unsigned i = 0; i < VecesPorFechaThread.bucket_count(); ++i) {
+			    std::cout << "bucket #" << i << " contains:";
+			    for ( auto local_it = VecesPorFechaThread.begin(i); local_it!= VecesPorFechaThread.end(i); ++local_it ){
+			    	unordered_map<int,int>::const_iterator got = VecesPorFecha.find (VecesPorFechaThread[i]);
+					if (got == VecesPorFecha.end() ){
+    					pair<int,int> parfechanumerotweets (local_it->first,local_it->second);
+    					VecesPorFecha.insert(parfechanumerotweets);
+					}
+					else
+    					VecesPorFecha.at(local_it->second)+=VecesPorFecha.at(local_it->second);
+			    }
+			}
+		}	
 	}
 	crearCSV(VecesPorFecha);
     std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
