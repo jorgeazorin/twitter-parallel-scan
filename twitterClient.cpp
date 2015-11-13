@@ -235,11 +235,10 @@ void BuscarTweetsUsuario(string palabrabuscada, unordered_map<int, int>& VecesPo
 
 	//vamos a usar 2 api keys, si las usamos las 2 y sigue habiendo restriccion, fin del programa...
 	int num_api_key=0;
-    
     bool tweetscompletos=false;
     string ultimotweet="";
-    ///Mientas la respuesta no sea un json vacio va a ir pidiendo tweets desde el ultimo recibido
 
+    ///Mientas la respuesta no sea un json vacio va a ir pidiendo tweets desde el ultimo recibido
     while(!tweetscompletos) {
     	tweetscompletos=true;
     	if( api.timelineUserGet(true, false,200,UsuarioID,true,ultimotweet)){//trimUser //retweets // nº //usuario//esusuarioID//ultimotweet
@@ -248,8 +247,7 @@ void BuscarTweetsUsuario(string palabrabuscada, unordered_map<int, int>& VecesPo
 	        string respuesta=replyMsg.c_str();
 	        if(respuesta.substr(2,6)!="errors" && respuesta.length()>50 ){
         		tweetscompletos=false;
-        		//cout<<"Mirando tweets desde "<<ultimotweet<<endl;
-
+		        
 		        //Dividir el json de respuesta entre tweets//////////////////////////////////////////////
 		        Tweet tweet;
 		        size_t pos = 0;
@@ -267,20 +265,14 @@ void BuscarTweetsUsuario(string palabrabuscada, unordered_map<int, int>& VecesPo
 				    	ultimotweet=token.substr(token.find("id")+4,token.find("id_str")-token.find("id")-6);
 						tweetsMiradosThread++;
 
-
-				    	//pasamos a minusculas el tweet y le quitamos los acentos
-				    	for(int i = 0; i<tweet.texto.length(); i++)
-								tweet.texto[i] = tolower(tweet.texto[i]);
-						QuitarAcentos(tweet.texto);
-
+				    	//quitamos acentos y minusculas
+						limpiarpalabra(tweet.texto) ;
 
 				    	if(tweet.texto.find(palabrabuscada)!=string::npos){
 				    		vecesQueApareceLaPalabraThread++;
-				    		//cout << "MENSAJE: " << tweet.texto << endl;
 			    			//Sumar a la fecha 1 si lo encuentra
 			    			unordered_map<int,int>::const_iterator got = VecesPorFecha.find (tweet.fecha);
-							if (got == VecesPorFecha.end() )
-							{
+							if (got == VecesPorFecha.end() ){
 		    					pair<int,int> parfechanumerotweets (tweet.fecha,1);
 		    					VecesPorFecha.insert(parfechanumerotweets);
 	    					}
