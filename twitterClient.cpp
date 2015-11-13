@@ -22,7 +22,7 @@ using namespace std;
 //////////////////////////////////////////////////////////////
 //const int MAX_USUARIOS_A_MIRAR=50;
 //const int MAX_BUSCARAMIGOS=2; //maximo de veces que se buscan amigos si es 1 solo buscara los amigos de jorgeazorin si es mas busca tambien los amigos de los amigos de jorgeazorin
-const string USUARIO_INICIO="jorgeazorin"; //Este es @jorgeazorin
+const string USUARIO_INICIO="144533310"; //Este es @jorgeazorin
 //string palabrabuscada="ébola";
 
 //////////////////////////////////////////////////////////////
@@ -166,21 +166,21 @@ vector<string> obtenerUsuarios(int max) {
 	bool EstaEnUsuariosMirados=false;
 	string UsuarioID;
 
-    while(usuariosSinMirar.size()<max)
+    while(usuariosMirados.size()<max)
     {
 
     	//cogemos el usuario de la head, y lo borramos
     	UsuarioID=*usuariosSinMirar.begin();
+    	cout << "ESTE USUARIO ES " << UsuarioID << endl;
     	usuariosSinMirar.erase(usuariosSinMirar.begin());
     	//lo guardamos en usuariosMirados para recordarlo
        	usuariosMirados.push_back(UsuarioID);
 
-		twitterObj.friendsIdsGet( "",USUARIO_INICIO,false );
+		twitterObj.friendsIdsGet( "",UsuarioID,true);
 	 	//Pedimos los ids de los usuarios y los separamos en un vector/////////
 	 	replyMsg = "";
 	    twitterObj.getLastWebResponse( replyMsg );
 	    respuesta=replyMsg.c_str();
-	    //cout << "LA RESPUESTA ES " << endl << respuesta << endl;
 	    respuestas= split(respuesta,']');
 	    respuesta=respuestas[0].substr(8,respuestas[0].length()-8);
 	    ids= split(respuesta,',');
@@ -204,11 +204,12 @@ vector<string> obtenerUsuarios(int max) {
 	    	if(!EstaEnUsuariosMirados && !EstaEnUsuariosSinMirar)
 	    	{
 	    	 	usuariosSinMirar.push_back(id);	
+	    	 	usuariosMirados.push_back(id);
 	    	}
 		}
 	}
 
-	return usuariosSinMirar;
+	return usuariosMirados;
 }
 
 void crearCSV(unordered_map<int, int> VecesPorFecha) {
@@ -320,19 +321,25 @@ int main( int argc, char* argv[] )
 		tweetsMiradosThread=0;
 		vecesQueApareceLaPalabraThread=0;
 		string replyMsg="";
+
+		//vamos a usar 2 api keys, si las usamos las 2 y sigue habiendo restriccion, fin del programa...
+		int num_api_key=0;
+
+		twitCurl api;
+	    //INICIALIZAR EL OBJETO DE TWITCURL
+		api.setTwitterUsername( "jorgeazorin" );
+	    api.setTwitterPassword( "179832" );
+		api.getOAuth().setConsumerKey( std::string( "ycPUlEPhZVdxushiDdXbNcDUH" ) );
+	 	api.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
+
 	    for(int i=omp_get_thread_num();i<usuarios.size() && i<MAX_USUARIOS_A_MIRAR;i+=omp_get_num_threads()) 
 	    {
 	    	if(i==0)
 	    		cout << omp_get_num_threads() << " HILOS EN EJECUCION" << endl;
-	    	twitCurl api;
-		    //INICIALIZAR EL OBJETO DE TWITCURL
-			api.setTwitterUsername( "jorgeazorin" );
-		    api.setTwitterPassword( "179832" );
-			api.getOAuth().setConsumerKey( std::string( "ycPUlEPhZVdxushiDdXbNcDUH" ) );
-		 	api.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
 
 	    	usuariosMiradosThread++;
 	    	string UsuarioID = usuarios[i];
+	    	cout << "LEYENDO TUITS DEL USUARIO " << UsuarioID << endl;
 	    	//cout << "Faltan por analizar los tweets de " << (MAX_USUARIOS_A_MIRAR-i) << " usuarios" << endl;
 	    	//cout << "EL THREAD " << omp_get_thread_num() << " VA A MIRAR EL USER " << UsuarioID << "EN LA ITERACION " << i << endl;
 
@@ -342,6 +349,7 @@ int main( int argc, char* argv[] )
 		    ///Mientas la respuesta no sea un json vacio va a ir pidiendo tweets desde el ultimo recibido
 
 		    while(!tweetscompletos) {
+		    	//cout << "...";
 		    	tweetscompletos=true;
 		    	if( api.timelineUserGet(true, false,200,UsuarioID,true,ultimotweet)){//trimUser //retweets // nº //usuario//esusuarioID//ultimotweet
 			        api.getLastWebResponse( replyMsg );
@@ -376,6 +384,7 @@ int main( int argc, char* argv[] )
 
 						    	if(tweet.texto.find(palabrabuscada)!=string::npos){
 						    		vecesQueApareceLaPalabraThread++;
+						    		//cout << "MENSAJE: " << tweet.texto << endl;
 					    			//Sumar a la fecha 1 si lo encuentra
 					    			unordered_map<int,int>::const_iterator got = VecesPorFecha.find (tweet.fecha);
 									if (got == VecesPorFecha.end() )
@@ -394,12 +403,22 @@ int main( int argc, char* argv[] )
 							tweetscompletos=true;
 
 			    	}else{
-				    	cout<<respuesta<<endl;
 				    	if(respuesta.substr(2,6)=="errors")
 				    	{
+				    		num_api_key++;
+				    		if(num_api_key>1) //ya ha probado las 2 api key, asi que las dos estan restringidas
+				    		{
+				    			cout << "Las dos keys se han restringido, habrá que esperar 15 minutos..." << endl;
+				    			//break;
+				    			tweetscompletos=true; //ya no podemos leer tuits
+				    		}
+				    		cout<<respuesta<<endl;
+				    		tweetscompletos=false; //HAY QUE VOLVER A PONERLO EN FALSO, para que siga intentando leer tuits
+				    		api.setTwitterUsername( "jorgeazorin" );
+    						api.setTwitterPassword( "179832" );
 					    	api.getOAuth().setConsumerKey( std::string( "2Kdg60HDmZEu2NXIp7MRMBQIm" ) );
 		   					api.getOAuth().setConsumerSecret( std::string( "IQcdiWnJd1bsWHytbLmSZa4aNxlPJ5Jr9ZjwOPjiDp31Tyactn" ) );
-							cout << "SE HA CAMBIADO DINAMICAMENTE EL APP KEY, A VER SI ASI SIGUE FUNCIONANDO" << endl;
+							//cout << "Se ha cambiado el App Key, para saltarse la limitación del API de twitter." << endl;
 						}
 			    	}  
 			 	}
