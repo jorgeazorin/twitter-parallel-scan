@@ -241,23 +241,15 @@ int main( int argc, char* argv[] )
 	cout << "Se va a buscar la cadena " << palabrabuscada << endl;
 
 	//VARIABLES CRITICAS
-	//numero de usuarios que se han mirado hasta el momento
-	unsigned int usuariosMirados=0;
-
-	//numero de tweets que se han mirado
-	unsigned int tweetsMirados=0;
-
-	//veces que aparece la palabra
+	unsigned int usuariosMirados=0; 			
+	unsigned int tweetsMirados=0;				
 	unsigned int vecesQueApareceLaPalabra=0;
 
-	//mapa de clave fecha (entero) y valor numero de veces que se ha encontrado la palabra
-	//en esa fecha
+	//mapa de clave fecha (entero) y valor numero de veces que se ha encontrado la palabra en esa fecha
 	unordered_map<int, int> VecesPorFecha;
 
-
 	//conseguimos una lista de usuarios
-    vector<string> usuarios;
-    usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR);
+    vector<string> usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR);
 
 
 	//AHORA COGER UNO A UNO AL USUARIO Y LEER SUS TUITS
@@ -305,11 +297,11 @@ int main( int argc, char* argv[] )
 	    for(int i=omp_get_thread_num();i<usuarios.size() && i<MAX_USUARIOS_A_MIRAR;i+=omp_get_num_threads()) 
 	    {
 	    	if(i==0)
-	    		cout << omp_get_num_threads() << " HILOS EN EJECUCION" << endl;
+	    		cout<<endl << omp_get_num_threads() << " HILOS EN EJECUCION" << endl;
 
 	    	usuariosMiradosThread++;
 	    	string UsuarioID = usuarios[i];
-	    	cout << "LEYENDO TUITS DEL USUARIO " << UsuarioID << endl;
+	    	cout << "LEYENDO TUITS DEL USUARIO " << UsuarioID <<" en el hilo "<<omp_get_thread_num() << endl;
 	    	//cout << "Faltan por analizar los tweets de " << (MAX_USUARIOS_A_MIRAR-i) << " usuarios" << endl;
 	    	//cout << "EL THREAD " << omp_get_thread_num() << " VA A MIRAR EL USER " << UsuarioID << "EN LA ITERACION " << i << endl;
 
@@ -414,6 +406,6 @@ int main( int argc, char* argv[] )
 
 	//std::cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << " microsegundos" << std::endl;
 	//std::cout << "Time difference = " << chrono::duration_cast<chrono::nanoseconds> (end - begin).count() << " nanosegundos" << std::endl;
-	std::cout << "Time difference = " << chrono::duration_cast<chrono::milliseconds> (end - begin).count() << " milisegundos" << std::endl;
-	std::cout << "Time difference = " << chrono::duration_cast<chrono::seconds> (end - begin).count() << " segundos" << std::endl;
+	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::milliseconds> (end - begin).count() << " milisegundos" << std::endl;
+	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::seconds> (end - begin).count() << " segundos" << std::endl;
 }
