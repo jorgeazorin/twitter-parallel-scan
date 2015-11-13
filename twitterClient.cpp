@@ -20,22 +20,17 @@ using namespace std;
 ///////////////////////////////////////////////////////////////
 //Constantes globales
 //////////////////////////////////////////////////////////////
-//const int MAX_USUARIOS_A_MIRAR=50;
-//const int MAX_BUSCARAMIGOS=2; //maximo de veces que se buscan amigos si es 1 solo buscara los amigos de jorgeazorin si es mas busca tambien los amigos de los amigos de jorgeazorin
 const string USUARIO_INICIO="144533310"; //Este es @jorgeazorin
-//string palabrabuscada="ébola";
+
 
 //////////////////////////////////////////////////////////////
 //Clase Tweet
-///////////////////////////////////////////////gma//////////////
+/////////////////////////////////////////////////////////////
 class Tweet {
 	public:
 		int fecha=0;
 		string texto="";
 };
-
-
-
 
 
 //////////////////////////////////////////////////////////////
@@ -137,46 +132,28 @@ void QuitarAcentos(string& texto){
 
 
 vector<string> obtenerUsuarios(int max) {
-	twitCurl twitterObj;
-
-
-	//en este vector guardaremos los usuarios que aun no hemos mirado y leido sus tuits
-	vector<string> usuariosSinMirar;
-
-	//en este vector se van almacenando los usuarios que ya hayamos visto
-	vector<string> usuariosMirados;
+	//en este vector guardaremos los usuarios que vamos encontrando
+	vector<string> usuarios;
 
 	//INICIALIZAR EL OBJETO DE TWITCURL
+	twitCurl twitterObj;
 	twitterObj.setTwitterUsername( "jorgeazorin" );
     twitterObj.setTwitterPassword( "179832" );
-    //memset( tmpBuf, 0, 2048 );
 	twitterObj.getOAuth().setConsumerKey( std::string( "ycPUlEPhZVdxushiDdXbNcDUH" ) );
  	twitterObj.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
-
-
     //Añadimos el usuario Inicial a la lista
-    usuariosSinMirar.push_back(USUARIO_INICIO);
+    usuarios.push_back(USUARIO_INICIO);
 
-    string replyMsg;
-    string respuesta;
-    vector<string> respuestas;
-    vector<string> ids;
-
-   	bool EstaEnUsuariosSinMirar=false;
-	bool EstaEnUsuariosMirados=false;
-	string UsuarioID;
-
-    while(usuariosMirados.size()<max)
+    string replyMsg, respuesta;
+    vector<string> respuestas, ids;
+	int i=0;
+    while(usuarios.size()<max)
     {
 
     	//cogemos el usuario de la head, y lo borramos
-    	UsuarioID=*usuariosSinMirar.begin();
-    	cout << "ESTE USUARIO ES " << UsuarioID << endl;
-    	usuariosSinMirar.erase(usuariosSinMirar.begin());
-    	//lo guardamos en usuariosMirados para recordarlo
-       	usuariosMirados.push_back(UsuarioID);
-
+    	string UsuarioID=usuarios[i];
 		twitterObj.friendsIdsGet( "",UsuarioID,true);
+
 	 	//Pedimos los ids de los usuarios y los separamos en un vector/////////
 	 	replyMsg = "";
 	    twitterObj.getLastWebResponse( replyMsg );
@@ -185,31 +162,24 @@ vector<string> obtenerUsuarios(int max) {
 	    respuesta=respuestas[0].substr(8,respuestas[0].length()-8);
 	    ids= split(respuesta,',');
 
-
 	    for (int i=0; i<ids.size(); i++){
-	    	EstaEnUsuariosSinMirar=false;
-	   		EstaEnUsuariosMirados=false;
+	   		bool EstaEnUsuarios=false;
 
 	    	string id = ids[i];
 
-	    	for (int t=0; t<usuariosSinMirar.size(); t++)
-	    		if(id==usuariosSinMirar[t])
-	    			EstaEnUsuariosSinMirar=true;
+	    	for (int t=0; t<usuarios.size(); t++)
+	    		if(id==usuarios[t])
+	    			EstaEnUsuarios=true;
 
-
-	    	for (int j=0; j<usuariosMirados.size(); j++)
-	    		if(id==usuariosMirados[j])
-	    			EstaEnUsuariosMirados=true;
-	    	//Si no esta en ninguna de las 2 listas lo añadimos a la lista que vamos a mirar
-	    	if(!EstaEnUsuariosMirados && !EstaEnUsuariosSinMirar)
+	    	//Si no esta en la lista de usuarios
+	    	if(!EstaEnUsuarios)
 	    	{
-	    	 	usuariosSinMirar.push_back(id);	
-	    	 	usuariosMirados.push_back(id);
+	    	 	usuarios.push_back(id);
 	    	}
 		}
 	}
-
-	return usuariosMirados;
+	cout<<"Lista de usuarios size:"+usuarios.size();
+	return usuarios;
 }
 
 void crearCSV(unordered_map<int, int> VecesPorFecha) {
