@@ -31,7 +31,7 @@ class Tweet {
 
 
 //////////////////////////////////////////////////////////////
-//Modulo para dividir string
+//Modulo para dividir string mediante un caracter delimitador
 /////////////////////////////////////////////////////////////
 vector<string> split(string str, char delimiter) {
 	  vector<string> internal;
@@ -78,23 +78,6 @@ Tweet StringToTweet(string t){
 	tweet.texto=t.substr(t.find("text")+7,t.find("source")-t.find("text")-10);
 	return tweet;
 }
-
-string fechaInt2fechaString(int fechaint){
-	string fechabruto="";
-    string fechalimpia="";
-	fechabruto=to_string(fechaint);
-
-	//Si el dia es menor de 10 le ponemos un 0 delante
-	if(fechabruto.length()<8)
-		fechabruto="0"+fechabruto;
-
-	//ponemos la fecha con /
-	fechalimpia=fechabruto.at(0);	fechalimpia+=fechabruto.at(1);	fechalimpia+="/";  	//Dia
-	fechalimpia+=fechabruto.at(2);	fechalimpia+=fechabruto.at(3);	fechalimpia+="/";	//Mes
-	fechalimpia+=fechabruto.at(4);	fechalimpia+=fechabruto.at(5); 	fechalimpia+=fechabruto.at(6); fechalimpia+=fechabruto.at(7); //Año
-	return fechalimpia;
-}
-
 
 
 //////////////////////////////////////////////////////////////
@@ -171,7 +154,6 @@ vector<string> obtenerUsuarios(int max) {
 	    	 	usuarios.push_back(ids[i]);
 		}
 	}
-	cout<<"Lista de usuarios size: "+usuarios.size();
 	return usuarios;
 }
 
@@ -285,8 +267,8 @@ void BuscarTweetsUsuario(string palabrabuscada, unordered_map<int, int>& VecesPo
         		//Veces que encuentra un tweet en el json si encuentra menos de 3 es seguro que ya no quedan tweets por mirar
 				if(repeticiones<3)
 					tweetscompletos=true;
-
-	    	}else{
+	    	}
+	    	else{
 		    	if(respuesta.substr(2,6)=="errors")
 		    	{
 		    		num_api_key++;
@@ -295,13 +277,14 @@ void BuscarTweetsUsuario(string palabrabuscada, unordered_map<int, int>& VecesPo
 		    			cout << "Las dos keys se han restringido, habrá que esperar 15 minutos..." << endl;
 		    			tweetscompletos=true; //ya no podemos leer tuits
 		    		}
-		    		cout<<respuesta<<endl;
-		    		tweetscompletos=false; //HAY QUE VOLVER A PONERLO EN FALSO, para que siga intentando leer tuits
-		    		api.setTwitterUsername( "jorgeazorin" );
-					api.setTwitterPassword( "179832" );
-			    	api.getOAuth().setConsumerKey( std::string( "2Kdg60HDmZEu2NXIp7MRMBQIm" ) );
-   					api.getOAuth().setConsumerSecret( std::string( "IQcdiWnJd1bsWHytbLmSZa4aNxlPJ5Jr9ZjwOPjiDp31Tyactn" ) );
-					//cout << "Se ha cambiado el App Key, para saltarse la limitación del API de twitter." << endl;
+		    		else{ //si aun le queda 1 api key por probar, usarla
+			    		cout<<"La primera key se ha restringido, vamos a usar ahora la segunda key..."<<endl;
+			    		tweetscompletos=false; //lo ponemos a falso, para que siga intentando leer tuits
+			    		api.setTwitterUsername( "jorgeazorin" );
+						api.setTwitterPassword( "179832" );
+				    	api.getOAuth().setConsumerKey( std::string( "2Kdg60HDmZEu2NXIp7MRMBQIm" ) );
+	   					api.getOAuth().setConsumerSecret( std::string( "IQcdiWnJd1bsWHytbLmSZa4aNxlPJ5Jr9ZjwOPjiDp31Tyactn" ) );
+   					}
 				}
 	    	}  
 	 	}
@@ -367,7 +350,6 @@ int main( int argc, char* argv[] )
 
 	#pragma omp parallel private(usuariosMiradosThread,tweetsMiradosThread,vecesQueApareceLaPalabraThread,VecesPorFechaThread)
 	{
-		cout<<endl << omp_get_num_threads() << " HILOS EN EJECUCION" << endl;
 		usuariosMiradosThread=0; 
 		tweetsMiradosThread=0;
 		vecesQueApareceLaPalabraThread=0;
@@ -391,7 +373,6 @@ int main( int argc, char* argv[] )
 			tweetsMirados+=tweetsMiradosThread;
 			vecesQueApareceLaPalabra+=vecesQueApareceLaPalabraThread;
 		    for ( unsigned i = 0; i < VecesPorFechaThread.bucket_count(); ++i) {
-			    std::cout << "bucket #" << i << " contains:";
 			    for ( auto local_it = VecesPorFechaThread.begin(i); local_it!= VecesPorFechaThread.end(i); ++local_it ){
 			    	unordered_map<int,int>::const_iterator got = VecesPorFecha.find (VecesPorFechaThread[i]);
 					if (got == VecesPorFecha.end() ){
