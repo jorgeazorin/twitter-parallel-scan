@@ -213,7 +213,7 @@ void limpiarpalabra(string& palabrabuscada){
 
 
 
-void BuscarTweetsUsuario(string palabrabuscada, unordered_map<int, int>& VecesPorFecha, int& usuariosMiradosThread, int& tweetsMiradosThread, int& vecesQueApareceLaPalabraThread, twitCurl& api, string& UsuarioID ){
+bool BuscarTweetsUsuario(string palabrabuscada, unordered_map<int, int>& VecesPorFecha, int& usuariosMiradosThread, int& tweetsMiradosThread, int& vecesQueApareceLaPalabraThread, twitCurl& api, string& UsuarioID ){
 
 	//vamos a usar 2 api keys, si las usamos las 2 y sigue habiendo restriccion, fin del programa...
 	int num_api_key=0;
@@ -275,7 +275,7 @@ void BuscarTweetsUsuario(string palabrabuscada, unordered_map<int, int>& VecesPo
 		    		if(num_api_key>1) //ya ha probado las 2 api key, asi que las dos estan restringidas
 		    		{
 		    			cout << "Las dos keys se han restringido, habrá que esperar 15 minutos..." << endl;
-		    			tweetscompletos=true; //ya no podemos leer tuits
+		    			return false; //ya no podemos leer tuits
 		    		}
 		    		else{ //si aun le queda 1 api key por probar, usarla
 			    		cout<<"La primera key se ha restringido, vamos a usar ahora la segunda key..."<<endl;
@@ -289,6 +289,7 @@ void BuscarTweetsUsuario(string palabrabuscada, unordered_map<int, int>& VecesPo
 	    	}  
 	 	}
     }
+    return true;
 }
 
 
@@ -339,8 +340,10 @@ int main( int argc, char* argv[] )
     vector<string> usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR);
 
 
-    //PARALELIZANDO LA COSA
+    //Definimos la cantidad de hilos a usar, que no sea una cantidad mayor al numero de procesadores
 	omp_set_num_threads((NUM_HILOS<omp_get_num_procs())?NUM_HILOS:omp_get_num_procs());
+
+	//Variables locales, cada hilo dispondrá de una copia
 	int usuariosMiradosThread; //Número usuarios mirados por thread
 	int tweetsMiradosThread;   //Número tweets mirados por thread
 	int vecesQueApareceLaPalabraThread; //Número de veces que esta la palabra buscada por thread
@@ -350,9 +353,12 @@ int main( int argc, char* argv[] )
 
 	#pragma omp parallel private(usuariosMiradosThread,tweetsMiradosThread,vecesQueApareceLaPalabraThread,VecesPorFechaThread)
 	{
+		int id_hilo = omp_get_thread_num();
+		int num_hilos = omp_get_num_threads();
 		usuariosMiradosThread=0; 
 		tweetsMiradosThread=0;
 		vecesQueApareceLaPalabraThread=0;
+		string usuarioID;
 
 	    //INICIALIZAR EL OBJETO DE TWITCURL
 		twitCurl api;
@@ -361,14 +367,18 @@ int main( int argc, char* argv[] )
 		api.getOAuth().setConsumerKey( std::string( "ycPUlEPhZVdxushiDdXbNcDUH" ) );
 	 	api.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
 
-	    for(int i=omp_get_thread_num();i<usuarios.size() && i<MAX_USUARIOS_A_MIRAR;i+=omp_get_num_threads()){
+	    for(int i=id_hilo;i<usuarios.size() && i<MAX_USUARIOS_A_MIRAR;i+=num_hilos){
+
+	    	if(i==0) //que solo lo imprima una vez, y solo el thread 0
+	    		cout << "Se van a usar " << num_hilos << " hilos" << endl;
 	    	usuariosMiradosThread++;
-	    	string UsuarioID = usuarios[i];
-	    	cout << "LEYENDO TUITS DEL USUARIO " << UsuarioID <<" en el hilo "<<omp_get_thread_num() << endl;
-	    	BuscarTweetsUsuario(palabrabuscada,VecesPorFechaThread, usuariosMiradosThread, tweetsMiradosThread, vecesQueApareceLaPalabraThread, api, UsuarioID );
+	    	usuarioID = usuarios[i];
+	    	if(!BuscarTweetsUsuario(palabrabuscada,VecesPorFechaThread, usuariosMiradosThread, tweetsMiradosThread, vecesQueApareceLaPalabraThread, api, usuarioID ))
+	    		break; //si las 2 keys estan totalmente restringidas, habra que esperar 15 minutos
 		}
 		#pragma omp critical
 		{
+			cout << "Leidos tweets del usuario " << usuarioID <<" en el hilo "<< id_hilo << endl;
 			usuariosMirados+=usuariosMiradosThread;
 			tweetsMirados+=tweetsMiradosThread;
 			vecesQueApareceLaPalabra+=vecesQueApareceLaPalabraThread;
