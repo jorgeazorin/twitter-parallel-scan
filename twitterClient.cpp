@@ -132,11 +132,11 @@ vector<string> obtenerUsuarios(int max) {
     usuarios.push_back(USUARIO_INICIO);
     
     for(int i=0; usuarios.size()<max; i++){
-    	//cogemos el usuario de la head, y lo borramos
+    	//cogemos el usuario del vector
     	string UsuarioID=usuarios[i];
     	string replyMsg = "";
 	 	
-	 	//Pedimos los ids de los usuarios y los separamos en un vector/////////
+	 	//Pedimos los ids de sus amigos y los separamos en un vector/////////
 		twitterObj.friendsIdsGet( "",UsuarioID,true);
 	    twitterObj.getLastWebResponse( replyMsg );
 	    respuesta=replyMsg.c_str();
@@ -163,10 +163,10 @@ vector<string> obtenerUsuarios(int max) {
 /////////////////////////////////////////////////////////////
 void crearCSV(unordered_map<int, int> VecesPorFecha) {
 	//Crear un archivo con los resultados//////////////////
-    ofstream Fichero("datos.csv");         //Opening file to print info to
-    Fichero << "Fecha"<<";"<<"Numero de tweets" << endl;          //Headings for file
+    ofstream Fichero("datos.csv");
+    Fichero << "Fecha"<<";"<<"Numero de tweets" << endl; //los nombres de las "columnas"
 
-	for(int a=2006;a<=2016;a++){
+	for(int a=2006;a<=2015;a++){
     	for(int m=1;m<=12;m++){
     		int veces=0;
     		for(int d=1;d<=31;d++){
@@ -212,21 +212,25 @@ void limpiarpalabra(string& palabrabuscada){
 
 
 
-
-bool BuscarTweetsUsuario(string palabrabuscada, unordered_map<int, int>& VecesPorFecha, int& usuariosMiradosThread, int& tweetsMiradosThread, int& vecesQueApareceLaPalabraThread, twitCurl& api, string& UsuarioID ){
+//////////////////////////////////////////////////////////////
+//Funcion que usa la api para leer tweets de un usuario y va
+//incrementando los contadores locales de cada hilo
+/////////////////////////////////////////////////////////////
+bool BuscarTweetsUsuario(string palabrabuscada, string UsuarioID, unordered_map<int, int>& VecesPorFecha, int& tweetsMiradosThread, int& vecesQueApareceLaPalabraThread, twitCurl& api){
 
 	//vamos a usar 2 api keys, si las usamos las 2 y sigue habiendo restriccion, fin del programa...
 	int num_api_key=0;
     bool tweetscompletos=false;
     string ultimotweet="";
-
+    string replyMsg="";
+    string respuesta="";
     ///Mientas la respuesta no sea un json vacio va a ir pidiendo tweets desde el ultimo recibido
     while(!tweetscompletos) {
     	tweetscompletos=true;
     	if( api.timelineUserGet(true, false,200,UsuarioID,true,ultimotweet)){//trimUser //retweets // nº //usuario//esusuarioID//ultimotweet
-	        string replyMsg="";
+	        replyMsg="";
 	        api.getLastWebResponse( replyMsg );
-	        string respuesta=replyMsg.c_str();
+	        respuesta=replyMsg.c_str();
 	        if(respuesta.substr(2,6)!="errors" && respuesta.length()>50 ){
         		tweetscompletos=false;
 		        
@@ -373,7 +377,7 @@ int main( int argc, char* argv[] )
 	    		cout << "Se van a usar " << num_hilos << " hilos" << endl;
 	    	usuariosMiradosThread++;
 	    	usuarioID = usuarios[i];
-	    	if(!BuscarTweetsUsuario(palabrabuscada,VecesPorFechaThread, usuariosMiradosThread, tweetsMiradosThread, vecesQueApareceLaPalabraThread, api, usuarioID ))
+	    	if(!BuscarTweetsUsuario(palabrabuscada, usuarioID, VecesPorFechaThread, tweetsMiradosThread, vecesQueApareceLaPalabraThread, api))
 	    		break; //si las 2 keys estan totalmente restringidas, habra que esperar 15 minutos
 		}
 		#pragma omp critical
