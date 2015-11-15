@@ -181,8 +181,8 @@ void crearCSV(unordered_map<int, int> VecesPorFecha) {
 
 
 void uso(const char* nombre_programa) {
-	cout << "Uso: " << nombre_programa << " palabra num_usuarios num_hilos" << endl;
-	cout << "Ejemplo: ./" << nombre_programa << " fútbol 20 16" << endl;
+	cout <<endl<< "Uso: " << nombre_programa << " palabra num_usuarios num_hilos (usuario_inicial)" << endl;
+	cout << "Ejemplo: " << nombre_programa << " fútbol 20 4 (domingogallardo) "<<endl <<"        El usuario inicial es opcional" << endl<<endl;
 }
 
 
