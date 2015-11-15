@@ -6,7 +6,7 @@ Para compilar y ejecutar
 1. Hay que tener instalado subversion ("sudo apt-get install subversion")
 1. Te descargas todo
 1. haces sudo make (posiblemente hay que hacer sudo make por lo de administrador y todo eso)
-1. ejecutar ./twitterClient num_usuarios num_hilos
+1. ejecutar ./twitterClient num_usuarios num_hilos (usuarioInical) //el usuario inicial es opcional
 
 
 Los resultados estan en el archivo datos.csv que se crea al ejecutar el programa
