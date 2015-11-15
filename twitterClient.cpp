@@ -169,11 +169,12 @@ void crearCSV(unordered_map<int, int> VecesPorFecha) {
 					veces+=VecesPorFecha.at(f);
     		}
     		Fichero<<m<<"/"<<a<<";"<<veces<<endl;
-    		cout<<m<<"/"<<a<<";"<<veces<<endl;
+    		//cout<<m<<"/"<<a<<";"<<veces<<endl;
     	}
     }
     //Cerrar fichero
     Fichero.close();
+    cout<<endl<<"Resultados en datos.csv calentitos para un excel"<<endl<<endl;
 }
 
 
