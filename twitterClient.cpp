@@ -12,14 +12,6 @@
 #include <omp.h> 
 using namespace std;
 
-
-
-///////////////////////////////////////////////////////////////
-//Constantes globales
-//////////////////////////////////////////////////////////////
-const string USUARIO_INICIO="144533310"; //Este es @jorgeazorin
-
-
 //////////////////////////////////////////////////////////////
 //Clase Tweet
 /////////////////////////////////////////////////////////////
@@ -116,7 +108,7 @@ void QuitarAcentos(string& texto){
 //////////////////////////////////////////////////////////////
 //Modulo para Buscar amigos
 /////////////////////////////////////////////////////////////
-vector<string> obtenerUsuarios(int max) {
+vector<string> obtenerUsuarios(int max, string usuarioInicial) {
 	//en este vector guardaremos los usuarios que vamos encontrando
 	vector<string> usuarios; //Lista de usuarios final
 	string respuesta; //La respuesta del api de de twitter
@@ -129,15 +121,16 @@ vector<string> obtenerUsuarios(int max) {
 	twitterObj.getOAuth().setConsumerKey( std::string( "ycPUlEPhZVdxushiDdXbNcDUH" ) );
  	twitterObj.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
     //Añadimos el usuario Inicial a la lista
-    usuarios.push_back(USUARIO_INICIO);
+    usuarios.push_back(usuarioInicial);
     
-    for(int i=0; usuarios.size()<max; i++){
-    	//cogemos el usuario del vector
-    	string UsuarioID=usuarios[i];
+    for(int i=0; usuarios.size()<max && i<usuarios.size() ; i++){
     	string replyMsg = "";
-	 	
+    	bool esUsuarioUnID=true;
+    	if(usuarios[i]==usuarioInicial)
+    		esUsuarioUnID=false;
+	 	cout<<"Obteniendo amigos de "+ usuarios[i]<<endl;
 	 	//Pedimos los ids de sus amigos y los separamos en un vector/////////
-		twitterObj.friendsIdsGet( "",UsuarioID,true);
+		twitterObj.friendsIdsGet( "",usuarios[i],esUsuarioUnID);
 	    twitterObj.getLastWebResponse( replyMsg );
 	    respuesta=replyMsg.c_str();
 	    respuestas= split(respuesta,']');
@@ -216,7 +209,7 @@ void limpiarpalabra(string& palabrabuscada){
 //Funcion que usa la api para leer tweets de un usuario y va
 //incrementando los contadores locales de cada hilo
 /////////////////////////////////////////////////////////////
-bool BuscarTweetsUsuario(string palabrabuscada, string UsuarioID, unordered_map<int, int>& VecesPorFecha, int& tweetsMiradosThread, int& vecesQueApareceLaPalabraThread, twitCurl& api){
+bool BuscarTweetsUsuario(string palabrabuscada, string UsuarioID, unordered_map<int, int>& VecesPorFecha, int& tweetsMiradosThread, int& vecesQueApareceLaPalabraThread, twitCurl& api, bool elIDesNombre){
 
 	//vamos a usar 2 api keys, si las usamos las 2 y sigue habiendo restriccion, fin del programa...
 	int num_api_key=0;
@@ -227,7 +220,7 @@ bool BuscarTweetsUsuario(string palabrabuscada, string UsuarioID, unordered_map<
     ///Mientas la respuesta no sea un json vacio va a ir pidiendo tweets desde el ultimo recibido
     while(!tweetscompletos) {
     	tweetscompletos=true;
-    	if( api.timelineUserGet(true, false,200,UsuarioID,true,ultimotweet)){//trimUser //retweets // nº //usuario//esusuarioID//ultimotweet
+    	if( api.timelineUserGet(true, false,200,UsuarioID,!elIDesNombre,ultimotweet)){//trimUser //retweets // nº //usuario//esusuarioID//ultimotweet
 	        replyMsg="";
 	        api.getLastWebResponse( replyMsg );
 	        respuesta=replyMsg.c_str();
@@ -311,10 +304,17 @@ int main( int argc, char* argv[] )
 	string palabrabuscada;
 	int MAX_USUARIOS_A_MIRAR;
 	int NUM_HILOS;
-	if(argc==4) {
+	string usuarioInicial;
+	if(argc==5) {
 		palabrabuscada = argv[1];
 		MAX_USUARIOS_A_MIRAR = atoi(argv[2]);
 		NUM_HILOS = atoi(argv[3]);
+		usuarioInicial=argv[4];
+	}else if(argc==4){
+		palabrabuscada = argv[1];
+		MAX_USUARIOS_A_MIRAR = atoi(argv[2]);
+		NUM_HILOS = atoi(argv[3]);
+		usuarioInicial="jorgeazorin";
 	}
 	else
 	{
@@ -341,7 +341,7 @@ int main( int argc, char* argv[] )
 	unordered_map<int, int> VecesPorFecha;
 
 	//conseguimos una lista de usuarios
-    vector<string> usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR);
+    vector<string> usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR, usuarioInicial);
 
 
     //Definimos la cantidad de hilos a usar, que no sea una cantidad mayor al numero de procesadores
@@ -377,12 +377,15 @@ int main( int argc, char* argv[] )
 	    		cout << "Se van a usar " << num_hilos << " hilos" << endl;
 	    	usuariosMiradosThread++;
 	    	usuarioID = usuarios[i];
-	    	if(!BuscarTweetsUsuario(palabrabuscada, usuarioID, VecesPorFechaThread, tweetsMiradosThread, vecesQueApareceLaPalabraThread, api))
+	    	cout << "Leidos tweets del usuario " << usuarioID <<" en el hilo "<< id_hilo << endl;
+	    	bool elIDesNombre=false;
+	    	if (usuarioID==usuarioInicial)
+	    		elIDesNombre=true;
+	    	if(!BuscarTweetsUsuario(palabrabuscada, usuarioID, VecesPorFechaThread, tweetsMiradosThread, vecesQueApareceLaPalabraThread, api, elIDesNombre))
 	    		break; //si las 2 keys estan totalmente restringidas, habra que esperar 15 minutos
 		}
 		#pragma omp critical
 		{
-			cout << "Leidos tweets del usuario " << usuarioID <<" en el hilo "<< id_hilo << endl;
 			usuariosMirados+=usuariosMiradosThread;
 			tweetsMirados+=tweetsMiradosThread;
 			vecesQueApareceLaPalabra+=vecesQueApareceLaPalabraThread;
