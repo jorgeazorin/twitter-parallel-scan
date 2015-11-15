@@ -388,13 +388,15 @@ int main( int argc, char* argv[] )
 			vecesQueApareceLaPalabra+=vecesQueApareceLaPalabraThread;
 		    for ( unsigned i = 0; i < VecesPorFechaThread.bucket_count(); ++i) {
 			    for ( auto local_it = VecesPorFechaThread.begin(i); local_it!= VecesPorFechaThread.end(i); ++local_it ){
-			    	unordered_map<int,int>::const_iterator got = VecesPorFecha.find (VecesPorFechaThread[i]);
+			    	unordered_map<int,int>::const_iterator got = VecesPorFecha.find (local_it->first);
 					if (got == VecesPorFecha.end() ){
     					pair<int,int> parfechanumerotweets (local_it->first,local_it->second);
     					VecesPorFecha.insert(parfechanumerotweets);
 					}
-					else
-    					VecesPorFecha.at(local_it->second)+=VecesPorFecha.at(local_it->second);
+					else{
+						int i=local_it->second;
+    					VecesPorFecha.at(local_it->first)+=i;
+    				}
 			    }
 			}
 		}	
