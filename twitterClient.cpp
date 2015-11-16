@@ -87,9 +87,6 @@ void replaceAll(string& str, const string& from, const string& to) {
 
 
 
-
-
-
 //////////////////////////////////////////////////////////////
 //Modulo para quitar los acentos de un texto
 /////////////////////////////////////////////////////////////
@@ -125,8 +122,9 @@ vector<string> obtenerUsuarios(int max, string usuarioInicial) {
     
     for(int i=0; usuarios.size()<max && i<usuarios.size() ; i++){
     	string replyMsg = "";
-    	bool esUsuarioUnID=true;
-    	if(usuarios[i]==usuarioInicial)
+
+    	bool esUsuarioUnID=true;	//los demas usuarios son representados por su id
+    	if(usuarios[i]==usuarioInicial) //solo el usuario inicial sera texto
     		esUsuarioUnID=false;
 	 	cout<<"Obteniendo amigos de "+ usuarios[i]<<endl;
 	 	//Pedimos los ids de sus amigos y los separamos en un vector/////////
@@ -169,23 +167,23 @@ void crearCSV(unordered_map<int, int> VecesPorFecha) {
 					veces+=VecesPorFecha.at(f);
     		}
     		Fichero<<m<<"/"<<a<<";"<<veces<<endl;
-    		//cout<<m<<"/"<<a<<";"<<veces<<endl;
     	}
     }
     //Cerrar fichero
     Fichero.close();
-    cout<<endl<<"Resultados en datos.csv calentitos para un excel"<<endl<<endl;
+    cout<<endl<<"Resultados en datos.csv preparados para excel"<<endl<<endl;
 }
 
 
 
 
-
+//////////////////////////////////////////////////////////////
+//Modulo para explicar cómo ejecutar correctamente el binario
+/////////////////////////////////////////////////////////////
 void uso(const char* nombre_programa) {
 	cout <<endl<< "Uso: " << nombre_programa << " palabra num_usuarios num_hilos (usuario_inicial)" << endl;
 	cout << "Ejemplo: " << nombre_programa << " fútbol 20 4 (domingogallardo) "<<endl <<"        El usuario inicial es opcional" << endl<<endl;
 }
-
 
 
 //////////////////////////////////////////////////////////////
@@ -198,12 +196,6 @@ void limpiarpalabra(string& palabrabuscada){
 	//le quitamos los acentos a la palabra
 	QuitarAcentos(palabrabuscada);		
 }
-
-
-
-
-
-
 
 
 //////////////////////////////////////////////////////////////
@@ -243,11 +235,13 @@ bool BuscarTweetsUsuario(string palabrabuscada, string UsuarioID, unordered_map<
 				    	tweet=StringToTweet(token);
 				    	///Obtener el id del tweet/////////////////////
 				    	ultimotweet=token.substr(token.find("id")+4,token.find("id_str")-token.find("id")-6);
+						//incrementamos la cantidad local de tweets mirados
 						tweetsMiradosThread++;
 
 				    	//quitamos acentos y minusculas
 						limpiarpalabra(tweet.texto) ;
 
+						//si el texto contiene la palabra
 				    	if(tweet.texto.find(palabrabuscada)!=string::npos){
 				    		vecesQueApareceLaPalabraThread++;
 			    			//Sumar a la fecha 1 si lo encuentra
@@ -292,11 +286,6 @@ bool BuscarTweetsUsuario(string palabrabuscada, string UsuarioID, unordered_map<
 
 
 
-
-
-
-
-
 //////////////////////////////////////////////////////////////
 //                        MAIN                            ////
 //////////////////////////////////////////////////////////////
@@ -306,11 +295,15 @@ int main( int argc, char* argv[] )
 	int MAX_USUARIOS_A_MIRAR;
 	int NUM_HILOS;
 	string usuarioInicial;
+
+	//si hay 4 argumentos (sin contar ./twitterClient)
+	//entonces usamos el usuario por parametro
 	if(argc==5) {
 		palabrabuscada = argv[1];
 		MAX_USUARIOS_A_MIRAR = atoi(argv[2]);
 		NUM_HILOS = atoi(argv[3]);
 		usuarioInicial=argv[4];
+	//si hay 3, usamos el usuario por defecto
 	}else if(argc==4){
 		palabrabuscada = argv[1];
 		MAX_USUARIOS_A_MIRAR = atoi(argv[2]);
@@ -333,17 +326,16 @@ int main( int argc, char* argv[] )
 	cout << "Se va a buscar la cadena " << palabrabuscada<< endl;
 
 
-	//VARIABLES CRITICAS
+	//Variables cŕiticas
 	unsigned int usuariosMirados=0; 			
 	unsigned int tweetsMirados=0;				
 	unsigned int vecesQueApareceLaPalabra=0;
-
 	//mapa de clave fecha (entero) y valor numero de veces que se ha encontrado la palabra en esa fecha
 	unordered_map<int, int> VecesPorFecha;
 
+
 	//conseguimos una lista de usuarios
     vector<string> usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR, usuarioInicial);
-
 
     //Definimos la cantidad de hilos a usar, que no sea una cantidad mayor al numero de procesadores
 	omp_set_num_threads((NUM_HILOS<omp_get_num_procs())?NUM_HILOS:omp_get_num_procs());
@@ -372,21 +364,29 @@ int main( int argc, char* argv[] )
 		api.getOAuth().setConsumerKey( std::string( "ycPUlEPhZVdxushiDdXbNcDUH" ) );
 	 	api.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
 
+	 	//en este bucle, repartimos mas o menos la misma carga (cantidad de usuarios)
+	 	//a los distintos hilos. Por ejemplo, si hay 5 usuarios y 3 hilos a leer
+	 	//Hilo 0 lee usuarios 0,3
+	 	//Hilo 1 lee usuarios 1,4
+	 	//Hilo 2 lee usuarios 2
 	    for(int i=id_hilo;i<usuarios.size() && i<MAX_USUARIOS_A_MIRAR;i+=num_hilos){
 
-	    	if(i==0) //que solo lo imprima una vez, y solo el thread 0
+	    	if(i==0) //que solo lo imprima una vez, y solo el hilo 0
 	    		cout << "Se van a usar " << num_hilos << " hilos" << endl;
+	    	//incrementamos la variable local de usuarios mirados por hilo
 	    	usuariosMiradosThread++;
 	    	usuarioID = usuarios[i];
 	    	cout << "Leidos tweets del usuario " << usuarioID <<" en el hilo "<< id_hilo << endl;
-	    	bool elIDesNombre=false;
-	    	if (usuarioID==usuarioInicial)
-	    		elIDesNombre=true;
-	    	if(!BuscarTweetsUsuario(palabrabuscada, usuarioID, VecesPorFechaThread, tweetsMiradosThread, vecesQueApareceLaPalabraThread, api, elIDesNombre))
+	    	bool esNombreUsuario=false;
+	    	if (usuarioID==usuarioInicial) //solo el usuario inicial tiene como id su nickname
+	    		esNombreUsuario=true;
+	    	if(!BuscarTweetsUsuario(palabrabuscada, usuarioID, VecesPorFechaThread, tweetsMiradosThread, vecesQueApareceLaPalabraThread, api,esNombreUsuario))
 	    		break; //si las 2 keys estan totalmente restringidas, habra que esperar 15 minutos
 		}
 		#pragma omp critical
 		{
+			//en la zona critica es donde añadimos el valor
+			//de las variables de hilo, a las variables "globales"
 			usuariosMirados+=usuariosMiradosThread;
 			tweetsMirados+=tweetsMiradosThread;
 			vecesQueApareceLaPalabra+=vecesQueApareceLaPalabraThread;
@@ -405,10 +405,11 @@ int main( int argc, char* argv[] )
 			}
 		}	
 	}
-	crearCSV(VecesPorFecha);
     std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
     cout<<endl<<endl<<"Total tweets mirados "<<tweetsMirados << " de "<< usuariosMirados <<" usuarios"<<endl;
     cout<<"la palabra "<<palabrabuscada<<" aparece "<<vecesQueApareceLaPalabra<<" veces"<<endl;
    	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::milliseconds> (end - begin).count() << " milisegundos" << std::endl;
 	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::seconds> (end - begin).count() << " segundos" << std::endl;
+	//creamos un archivo .csv con los datos para representarlos en excel
+	crearCSV(VecesPorFecha);
 }
