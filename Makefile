@@ -3,7 +3,7 @@
 # org: Infolab@tamu
 # date: Aug 19, 2015
 
-CC=g++ -fopenmp
+CC=mpicxx -fopenmp
 
 all : twitterClient
 

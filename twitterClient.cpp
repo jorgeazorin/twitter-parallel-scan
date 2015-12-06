@@ -9,7 +9,8 @@
 #include <unordered_map>
 #include <ctype.h>
 #include <chrono> //para los cronometros
-#include <omp.h> 
+//#include <omp.h> 
+#include <mpi.h>
 using namespace std;
 
 //////////////////////////////////////////////////////////////
@@ -181,8 +182,8 @@ void crearCSV(unordered_map<int, int> VecesPorFecha) {
 //Modulo para explicar cómo ejecutar correctamente el binario
 /////////////////////////////////////////////////////////////
 void uso(const char* nombre_programa) {
-	cout <<endl<< "Uso: " << nombre_programa << " palabra num_usuarios num_hilos (usuario_inicial)" << endl;
-	cout << "Ejemplo: " << nombre_programa << " fútbol 20 4 (domingogallardo) "<<endl <<"        El usuario inicial es opcional" << endl<<endl;
+	cout <<endl<< "Uso: " << nombre_programa << " palabra num_usuarios (usuario_inicial)" << endl;
+	cout << "Ejemplo: " << nombre_programa << " fútbol 20 (domingogallardo) "<<endl <<"        El usuario inicial es opcional" << endl<<endl;
 }
 
 
@@ -291,23 +292,21 @@ bool BuscarTweetsUsuario(string palabrabuscada, string UsuarioID, unordered_map<
 //////////////////////////////////////////////////////////////
 int main( int argc, char* argv[] )
 {
+	
 	string palabrabuscada;
 	int MAX_USUARIOS_A_MIRAR;
-	int NUM_HILOS;
 	string usuarioInicial;
 
 	//si hay 4 argumentos (sin contar ./twitterClient)
 	//entonces usamos el usuario por parametro
-	if(argc==5) {
+	if(argc==4) {
 		palabrabuscada = argv[1];
 		MAX_USUARIOS_A_MIRAR = atoi(argv[2]);
-		NUM_HILOS = atoi(argv[3]);
-		usuarioInicial=argv[4];
+		usuarioInicial=argv[3];
 	//si hay 3, usamos el usuario por defecto
-	}else if(argc==4){
+	}else if(argc==3){
 		palabrabuscada = argv[1];
 		MAX_USUARIOS_A_MIRAR = atoi(argv[2]);
-		NUM_HILOS = atoi(argv[3]);
 		usuarioInicial="jorgeazorin";
 	}
 	else
@@ -321,22 +320,104 @@ int main( int argc, char* argv[] )
 	//Empezamos a contar el tiempo que dura la ejecución
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-	//Quitamos acentos y ponemos en minusculas la palabra a buscar
-	limpiarpalabra(palabrabuscada) ;
-	cout << "Se va a buscar la cadena " << palabrabuscada<< endl;
+
+	//AQUI EMPIEZA EL PARALELISMO
+    int myrank, nprocs;
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+
+	MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
+	
+	//printf("Hello from processor %d of %d\n", myrank, nprocs);
 
 
-	//Variables cŕiticas
-	unsigned int usuariosMirados=0; 			
-	unsigned int tweetsMirados=0;				
-	unsigned int vecesQueApareceLaPalabra=0;
-	//mapa de clave fecha (entero) y valor numero de veces que se ha encontrado la palabra en esa fecha
-	unordered_map<int, int> VecesPorFecha;
+	MPI_Request request = MPI_REQUEST_NULL;
+
+	if(myrank==0) { //EL PROCESO MAESTRO COGERA TODOS LOS USUARIOS, Y ENTONCES LOS REPARTIRA EQUITATIVAMENTE
+		//Quitamos acentos y ponemos en minusculas la palabra a buscar
+		limpiarpalabra(palabrabuscada) ;
+		cout << "Se va a buscar la cadena " << palabrabuscada<< endl;
 
 
-	//conseguimos una lista de usuarios
-    vector<string> usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR, usuarioInicial);
+		//Variables cŕiticas
+		unsigned int usuariosMirados=0; 			
+		unsigned int tweetsMirados=0;				
+		unsigned int vecesQueApareceLaPalabra=0;
+		//mapa de clave fecha (entero) y valor numero de veces que se ha encontrado la palabra en esa fecha
+		unordered_map<int, int> VecesPorFecha;
 
+
+		//conseguimos una lista de usuarios
+	    vector<string> usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR,"jorgeazorin");
+
+	    cout << "HAY " << MAX_USUARIOS_A_MIRAR << " USUARIOS Y " << nprocs << " PROCESOS, HAY QUE REPARTIR" << endl;
+	    //int elementos_por_proceso = MAX_USUARIOS_A_MIRAR/nprocs;
+
+	    /*
+	    //char* usuarios_array = usuarios.c_str();
+		//vector<string> result;
+		string todo_junto = "";
+		for(int i=0;i<MAX_USUARIOS_A_MIRAR;i++) { //concatenamos todos los strings, con separador ;
+			todo_junto = todo_junto + usuarios[i];
+			if(i!=(MAX_USUARIOS_A_MIRAR-1))
+				todo_junto+=";"; //el ultimo sin separador
+		}
+		*/
+
+		//vector<string> usuarios_para_proceso;
+		/*
+		for(int i=0;i<MAX_USUARIOS_A_MIRAR;i++) { //repartir usuarios para cada proceso
+			cout << "ESTE SERIA PARA " << i%nprocs << endl;
+			usuarios_para_proceso[i%nprocs].push_back(usuarios[i]);
+		}
+		*/
+		for(int i=0;i<nprocs;i++) { //para cada proceso
+			string resultado="";
+			for(int j=i;j<MAX_USUARIOS_A_MIRAR;j+=nprocs) //va iterando y cogiendo los strings que le convenga
+			{
+				resultado= resultado + usuarios[j] + ";";
+			}
+			//buffer,tam,tipo de dato,proceso destinatario,tag de mensaje, comunicador
+			MPI_Isend(resultado.c_str(),resultado.size(),MPI_CHAR,i,i,MPI_COMM_WORLD,&request); 
+		}
+	}
+
+
+		//cout << "HASTA AQUI LLEGA" << endl;
+		MPI_Status estado;
+		//MPI_Probe(0,1,MPI_COMM_WORLD,&estado); //tenemos que usar probe primero, para obtener el tamaño del string
+		//int tam = 0;
+		//cout << "AQUI LLEGA" << endl;
+		//MPI_Get_count(&estado,MPI_CHAR,&tam); //obtenemos el count
+		//cout << "El tamanio de lo recibido es " << tam << endl;
+		int tam = 999;
+		char recibir[tam]; //con el tamaño, podemos instanciar un array de chars
+		MPI_Irecv(&recibir,tam,MPI_CHAR,0,MPI_ANY_TAG,MPI_COMM_WORLD,&request);
+		MPI_Wait(&request,&estado);
+		//MPI_Recv(&recibir,tam,MPI_CHAR,0,MPI_ANY_TAG,MPI_COMM_WORLD,&estado); //guardamos en el array el mensaje recibido, del proceso 0, con tag 1
+		//cout << recibir << endl;
+		//convertimos a string
+		string str(recibir);
+		//cout << str << endl;
+		vector<string> usuarios_recibidos = split(str,';');
+		cout << "El tamanio es de " << usuarios_recibidos.size() << endl;
+		//for(int i=0;i<usuarios_recibidos.size();i++) {
+			//cout << usuarios_recibidos[i] << endl;
+		//}
+
+
+
+	//LO QUE QUEREMOS PARA API TWITTER
+	//PROCESO 0 SACA TODOS LOS USUARIOS EN UN VECTOR DE STRINGS
+	//PROCESO 0 HACE MPI_SCATTER, QUE MANDA UN TROZO DE ESE VECTOR A CADA PROCESO
+
+	MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
+
+	MPI_Finalize();
+	return 0;
+
+    /*
     //Definimos la cantidad de hilos a usar, que no sea una cantidad mayor al numero de procesadores
 	omp_set_num_threads((NUM_HILOS<omp_get_num_procs())?NUM_HILOS:omp_get_num_procs());
 
@@ -412,4 +493,6 @@ int main( int argc, char* argv[] )
 	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::seconds> (end - begin).count() << " segundos" << std::endl;
 	//creamos un archivo .csv con los datos para representarlos en excel
 	crearCSV(VecesPorFecha);
+
+	*/
 }
