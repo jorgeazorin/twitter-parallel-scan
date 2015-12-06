@@ -320,6 +320,8 @@ int main( int argc, char* argv[] )
 	//Empezamos a contar el tiempo que dura la ejecución
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
+	int TAG_TAM = 8;
+	int TAG_MENSAJE = 9;
 
 	//AQUI EMPIEZA EL PARALELISMO
     int myrank, nprocs;
@@ -332,7 +334,13 @@ int main( int argc, char* argv[] )
 	//printf("Hello from processor %d of %d\n", myrank, nprocs);
 
 
-	MPI_Request request = MPI_REQUEST_NULL;
+	//MPI_Request request = MPI_REQUEST_NULL;
+	vector<MPI_Request> requests;
+			//inicializamos requests
+		for(int i=0;i<nprocs;i++) {
+			MPI_Request request = MPI_REQUEST_NULL;
+			requests.push_back(request);
+		}
 
 	if(myrank==0) { //EL PROCESO MAESTRO COGERA TODOS LOS USUARIOS, Y ENTONCES LOS REPARTIRA EQUITATIVAMENTE
 		//Quitamos acentos y ponemos en minusculas la palabra a buscar
@@ -349,63 +357,55 @@ int main( int argc, char* argv[] )
 
 
 		//conseguimos una lista de usuarios
-	    vector<string> usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR,"jorgeazorin");
+	    vector<string> usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR,usuarioInicial);
 
-	    cout << "HAY " << MAX_USUARIOS_A_MIRAR << " USUARIOS Y " << nprocs << " PROCESOS, HAY QUE REPARTIR" << endl;
-	    //int elementos_por_proceso = MAX_USUARIOS_A_MIRAR/nprocs;
-
-	    /*
-	    //char* usuarios_array = usuarios.c_str();
-		//vector<string> result;
-		string todo_junto = "";
-		for(int i=0;i<MAX_USUARIOS_A_MIRAR;i++) { //concatenamos todos los strings, con separador ;
-			todo_junto = todo_junto + usuarios[i];
-			if(i!=(MAX_USUARIOS_A_MIRAR-1))
-				todo_junto+=";"; //el ultimo sin separador
-		}
-		*/
-
-		//vector<string> usuarios_para_proceso;
-		/*
-		for(int i=0;i<MAX_USUARIOS_A_MIRAR;i++) { //repartir usuarios para cada proceso
-			cout << "ESTE SERIA PARA " << i%nprocs << endl;
-			usuarios_para_proceso[i%nprocs].push_back(usuarios[i]);
-		}
-		*/
 		for(int i=0;i<nprocs;i++) { //para cada proceso
 			string resultado="";
+			int tam_string=0;
 			for(int j=i;j<MAX_USUARIOS_A_MIRAR;j+=nprocs) //va iterando y cogiendo los strings que le convenga
 			{
 				resultado= resultado + usuarios[j] + ";";
 			}
-			//buffer,tam,tipo de dato,proceso destinatario,tag de mensaje, comunicador
-			MPI_Isend(resultado.c_str(),resultado.size(),MPI_CHAR,i,i,MPI_COMM_WORLD,&request); 
+			if(i!=0) //no hace falta mandarselo a si mismo
+			{
+				resultado+="."; //esto indica el fin del mensaje
+				MPI_Send(resultado.c_str(),resultado.size(),MPI_CHAR,i,i,MPI_COMM_WORLD);
+			}
+			else {
+				vector<string> usuarios_recibidos = split(resultado,';');
+				//cout << "El tamanio en 0 es de " << usuarios_recibidos.size() << endl;
+				cout << "USUARIOS PARA 0: " << endl;
+				for(int k=0;k<usuarios_recibidos.size();k++)
+					cout << usuarios_recibidos[k] << " ";
+				cout << endl;
+			}
 		}
 	}
+	else {
 
+		//MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
 
 		//cout << "HASTA AQUI LLEGA" << endl;
 		MPI_Status estado;
-		//MPI_Probe(0,1,MPI_COMM_WORLD,&estado); //tenemos que usar probe primero, para obtener el tamaño del string
-		//int tam = 0;
+		MPI_Probe(0,myrank,MPI_COMM_WORLD,&estado); //tenemos que usar probe primero, para obtener el tamaño del string
+		int tam = 0;
 		//cout << "AQUI LLEGA" << endl;
-		//MPI_Get_count(&estado,MPI_CHAR,&tam); //obtenemos el count
-		//cout << "El tamanio de lo recibido es " << tam << endl;
-		int tam = 999;
+		MPI_Get_count(&estado,MPI_CHAR,&tam); //obtenemos el count
 		char recibir[tam]; //con el tamaño, podemos instanciar un array de chars
-		MPI_Irecv(&recibir,tam,MPI_CHAR,0,MPI_ANY_TAG,MPI_COMM_WORLD,&request);
-		MPI_Wait(&request,&estado);
-		//MPI_Recv(&recibir,tam,MPI_CHAR,0,MPI_ANY_TAG,MPI_COMM_WORLD,&estado); //guardamos en el array el mensaje recibido, del proceso 0, con tag 1
-		//cout << recibir << endl;
+		MPI_Recv(&recibir,tam,MPI_CHAR,0,myrank,MPI_COMM_WORLD,&estado); //guardamos en el array el mensaje recibido, del proceso 0, con tag 1
 		//convertimos a string
 		string str(recibir);
-		//cout << str << endl;
+		str = split(str,'.')[0]; //cogemos el mensaje que queremos del buffer
+		//cout << "EL MENSAJE HASTA AHI ES " << str << endl;
 		vector<string> usuarios_recibidos = split(str,';');
-		cout << "El tamanio es de " << usuarios_recibidos.size() << endl;
-		//for(int i=0;i<usuarios_recibidos.size();i++) {
-			//cout << usuarios_recibidos[i] << endl;
-		//}
+		//cout << "El tamanio en " << myrank << " es de " << usuarios_recibidos.size() << endl;	
+		cout << "USUARIOS PARA " << myrank << endl;	
+		for(int k=0;k<usuarios_recibidos.size();k++)
+					cout << usuarios_recibidos[k] << " ";
+				cout << endl;
 
+		
+	}
 
 
 	//LO QUE QUEREMOS PARA API TWITTER
