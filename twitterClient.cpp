@@ -320,8 +320,14 @@ int main( int argc, char* argv[] )
 	//Empezamos a contar el tiempo que dura la ejecución
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-	int TAG_TAM = 8;
-	int TAG_MENSAJE = 9;
+	//Variables globales, al final root les da valor
+	unsigned int usuariosMirados=0; 			
+	unsigned int tweetsMirados=0;				
+	unsigned int vecesQueApareceLaPalabra=0;
+	//mapa de clave fecha (entero) y valor numero de veces que se ha encontrado la palabra en esa fecha
+	unordered_map<int, int> VecesPorFecha;
+
+
 
 	//AQUI EMPIEZA EL PARALELISMO
     int myrank, nprocs;
@@ -330,31 +336,14 @@ int main( int argc, char* argv[] )
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
 	MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
-	
-	//printf("Hello from processor %d of %d\n", myrank, nprocs);
 
+	vector<string> usuarios_recibidos; //cada proceso tendra una copia, con los usuarios que le toca leer sus tweets
 
-	//MPI_Request request = MPI_REQUEST_NULL;
-	vector<MPI_Request> requests;
-			//inicializamos requests
-		for(int i=0;i<nprocs;i++) {
-			MPI_Request request = MPI_REQUEST_NULL;
-			requests.push_back(request);
-		}
-
-	if(myrank==0) { //EL PROCESO MAESTRO COGERA TODOS LOS USUARIOS, Y ENTONCES LOS REPARTIRA EQUITATIVAMENTE
+	if(myrank==0) 
+	{ //EL PROCESO MAESTRO COGERA TODOS LOS USUARIOS, Y ENTONCES LOS REPARTIRA EQUITATIVAMENTE
 		//Quitamos acentos y ponemos en minusculas la palabra a buscar
 		limpiarpalabra(palabrabuscada) ;
 		cout << "Se va a buscar la cadena " << palabrabuscada<< endl;
-
-
-		//Variables cŕiticas
-		unsigned int usuariosMirados=0; 			
-		unsigned int tweetsMirados=0;				
-		unsigned int vecesQueApareceLaPalabra=0;
-		//mapa de clave fecha (entero) y valor numero de veces que se ha encontrado la palabra en esa fecha
-		unordered_map<int, int> VecesPorFecha;
-
 
 		//conseguimos una lista de usuarios
 	    vector<string> usuarios = obtenerUsuarios(MAX_USUARIOS_A_MIRAR,usuarioInicial);
@@ -362,137 +351,115 @@ int main( int argc, char* argv[] )
 		for(int i=0;i<nprocs;i++) { //para cada proceso
 			string resultado="";
 			int tam_string=0;
-			for(int j=i;j<MAX_USUARIOS_A_MIRAR;j+=nprocs) //va iterando y cogiendo los strings que le convenga
+			//si hay 3 procesos en total, el proceso 2 cogera el usuario 2,5,8...
+			for(int j=i;j<MAX_USUARIOS_A_MIRAR;j+=nprocs) //va asignandose ids de usuarios
 			{
-				resultado= resultado + usuarios[j] + ";";
+				resultado= resultado + usuarios[j] + ";"; //vamos acumulando los ids de usuarios en un string con separadores
 			}
 			if(i!=0) //no hace falta mandarselo a si mismo
 			{
 				resultado+="."; //esto indica el fin del mensaje
+				//el proceso root envia los usuarios asignados a los diferentes procesos
 				MPI_Send(resultado.c_str(),resultado.size(),MPI_CHAR,i,i,MPI_COMM_WORLD);
 			}
 			else {
-				vector<string> usuarios_recibidos = split(resultado,';');
-				//cout << "El tamanio en 0 es de " << usuarios_recibidos.size() << endl;
-				cout << "USUARIOS PARA 0: " << endl;
-				for(int k=0;k<usuarios_recibidos.size();k++)
-					cout << usuarios_recibidos[k] << " ";
-				cout << endl;
+				usuarios_recibidos = split(resultado,';'); //el proceso 0 no necesita mandarse los usuarios, ya los tiene
 			}
 		}
 	}
-	else {
-
-		//MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
-
-		//cout << "HASTA AQUI LLEGA" << endl;
+	else 
+	{
 		MPI_Status estado;
+		//Probe es como receive pero no recibe el mensaje, solo hace una query para saber datos utiles como el tamaño del mensaje
 		MPI_Probe(0,myrank,MPI_COMM_WORLD,&estado); //tenemos que usar probe primero, para obtener el tamaño del string
 		int tam = 0;
 		//cout << "AQUI LLEGA" << endl;
-		MPI_Get_count(&estado,MPI_CHAR,&tam); //obtenemos el count
+		MPI_Get_count(&estado,MPI_CHAR,&tam); //obtenemos el tamaño del mensaje
 		char recibir[tam]; //con el tamaño, podemos instanciar un array de chars
-		MPI_Recv(&recibir,tam,MPI_CHAR,0,myrank,MPI_COMM_WORLD,&estado); //guardamos en el array el mensaje recibido, del proceso 0, con tag 1
+		MPI_Recv(&recibir,tam,MPI_CHAR,0,myrank,MPI_COMM_WORLD,&estado); //guardamos en el array el mensaje recibido, del proceso 0, con el tag id de nuestro proceso
 		//convertimos a string
 		string str(recibir);
-		str = split(str,'.')[0]; //cogemos el mensaje que queremos del buffer
-		//cout << "EL MENSAJE HASTA AHI ES " << str << endl;
-		vector<string> usuarios_recibidos = split(str,';');
-		//cout << "El tamanio en " << myrank << " es de " << usuarios_recibidos.size() << endl;	
-		cout << "USUARIOS PARA " << myrank << endl;	
-		for(int k=0;k<usuarios_recibidos.size();k++)
-					cout << usuarios_recibidos[k] << " ";
-				cout << endl;
+		str = split(str,'.')[0]; //cogemos el mensaje que queremos del buffer, hasta el separador que indicaba el fin de mensaje
 
-		
+		usuarios_recibidos = split(str,';'); //inicializamos el vector de usuarios, con los usuarios que iban separados por ;
 	}
-
-
-	//LO QUE QUEREMOS PARA API TWITTER
-	//PROCESO 0 SACA TODOS LOS USUARIOS EN UN VECTOR DE STRINGS
-	//PROCESO 0 HACE MPI_SCATTER, QUE MANDA UN TROZO DE ESE VECTOR A CADA PROCESO
 
 	MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
 
-	MPI_Finalize();
-	return 0;
-
-    /*
-    //Definimos la cantidad de hilos a usar, que no sea una cantidad mayor al numero de procesadores
-	omp_set_num_threads((NUM_HILOS<omp_get_num_procs())?NUM_HILOS:omp_get_num_procs());
-
-	//Variables locales, cada hilo dispondrá de una copia
-	int usuariosMiradosThread; //Número usuarios mirados por thread
-	int tweetsMiradosThread;   //Número tweets mirados por thread
-	int vecesQueApareceLaPalabraThread; //Número de veces que esta la palabra buscada por thread
+	//Variables locales, cada proceso dispondrá de una copia
+	int usuariosMiradosThread=0; //Número usuarios mirados por thread
+	int tweetsMiradosThread=0;   //Número tweets mirados por thread
+	int vecesQueApareceLaPalabraThread=0; //Número de veces que esta la palabra buscada por thread
 	unordered_map<int, int> VecesPorFechaThread;
 
 	
+    //Inicializamos el objeto twitcurl, cada proceso tiene una copia
+	twitCurl api;
+	api.setTwitterUsername( "jorgeazorin" );
+    api.setTwitterPassword( "179832" );
+	api.getOAuth().setConsumerKey( std::string( "ycPUlEPhZVdxushiDdXbNcDUH" ) );
+ 	api.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
 
-	#pragma omp parallel private(usuariosMiradosThread,tweetsMiradosThread,vecesQueApareceLaPalabraThread,VecesPorFechaThread)
-	{
-		int id_hilo = omp_get_thread_num();
-		int num_hilos = omp_get_num_threads();
-		usuariosMiradosThread=0; 
-		tweetsMiradosThread=0;
-		vecesQueApareceLaPalabraThread=0;
-		string usuarioID;
+ 	string usuarioID; //variable que guarda el usuario al que se van a leer los tweets
 
-	    //INICIALIZAR EL OBJETO DE TWITCURL
-		twitCurl api;
-		api.setTwitterUsername( "jorgeazorin" );
-	    api.setTwitterPassword( "179832" );
-		api.getOAuth().setConsumerKey( std::string( "ycPUlEPhZVdxushiDdXbNcDUH" ) );
-	 	api.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
-
-	 	//en este bucle, repartimos mas o menos la misma carga (cantidad de usuarios)
-	 	//a los distintos hilos. Por ejemplo, si hay 5 usuarios y 3 hilos a leer
-	 	//Hilo 0 lee usuarios 0,3
-	 	//Hilo 1 lee usuarios 1,4
-	 	//Hilo 2 lee usuarios 2
-	    for(int i=id_hilo;i<usuarios.size() && i<MAX_USUARIOS_A_MIRAR;i+=num_hilos){
-
-	    	if(i==0) //que solo lo imprima una vez, y solo el hilo 0
-	    		cout << "Se van a usar " << num_hilos << " hilos" << endl;
-	    	//incrementamos la variable local de usuarios mirados por hilo
-	    	usuariosMiradosThread++;
-	    	usuarioID = usuarios[i];
-	    	cout << "Leidos tweets del usuario " << usuarioID <<" en el hilo "<< id_hilo << endl;
-	    	bool esNombreUsuario=false;
-	    	if (usuarioID==usuarioInicial) //solo el usuario inicial tiene como id su nickname
-	    		esNombreUsuario=true;
-	    	if(!BuscarTweetsUsuario(palabrabuscada, usuarioID, VecesPorFechaThread, tweetsMiradosThread, vecesQueApareceLaPalabraThread, api,esNombreUsuario))
-	    		break; //si las 2 keys estan totalmente restringidas, habra que esperar 15 minutos
-		}
-		#pragma omp critical
-		{
-			//en la zona critica es donde añadimos el valor
-			//de las variables de hilo, a las variables "globales"
-			usuariosMirados+=usuariosMiradosThread;
-			tweetsMirados+=tweetsMiradosThread;
-			vecesQueApareceLaPalabra+=vecesQueApareceLaPalabraThread;
-		    for ( unsigned i = 0; i < VecesPorFechaThread.bucket_count(); ++i) {
-			    for ( auto local_it = VecesPorFechaThread.begin(i); local_it!= VecesPorFechaThread.end(i); ++local_it ){
-			    	unordered_map<int,int>::const_iterator got = VecesPorFecha.find (local_it->first);
-					if (got == VecesPorFecha.end() ){
-    					pair<int,int> parfechanumerotweets (local_it->first,local_it->second);
-    					VecesPorFecha.insert(parfechanumerotweets);
-					}
-					else{
-						int i=local_it->second;
-    					VecesPorFecha.at(local_it->first)+=i;
-    				}
-			    }
-			}
-		}	
+    for(int i=0;i<usuarios_recibidos.size();i++){ //para cada usuario perteneciente a un proceso x
+    	//incrementamos la variable local de usuarios mirados por hilo
+    	usuariosMiradosThread++;
+    	usuarioID = usuarios_recibidos[i];
+    	cout << "Leidos tweets del usuario " << usuarioID <<" en el proceso "<< myrank << endl;
+    	bool esNombreUsuario=false;
+    	if (usuarioID==usuarioInicial) //solo el usuario inicial tiene como id su nickname
+    		esNombreUsuario=true;
+    	if(!BuscarTweetsUsuario(palabrabuscada, usuarioID, VecesPorFechaThread, tweetsMiradosThread, vecesQueApareceLaPalabraThread, api,esNombreUsuario))
+    		break; //si las 2 keys estan totalmente restringidas, habra que esperar 15 minutos
 	}
-    std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
-    cout<<endl<<endl<<"Total tweets mirados "<<tweetsMirados << " de "<< usuariosMirados <<" usuarios"<<endl;
-    cout<<"la palabra "<<palabrabuscada<<" aparece "<<vecesQueApareceLaPalabra<<" veces"<<endl;
-   	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::milliseconds> (end - begin).count() << " milisegundos" << std::endl;
-	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::seconds> (end - begin).count() << " segundos" << std::endl;
-	//creamos un archivo .csv con los datos para representarlos en excel
-	crearCSV(VecesPorFecha);
 
-	*/
+	//ZONA CRITICA, 
+	MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
+
+	//vamos a enviar el numero de usuarios mirados locales al root, y que haga el sumatorio
+	MPI_Reduce(&usuariosMiradosThread,&usuariosMirados,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
+	//vamos a enviar el numero de tweets mirados locales al root, y que haga el sumatorio
+	MPI_Reduce(&tweetsMiradosThread,&tweetsMirados,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
+	//vamos a enviar el numero de veces que aparece la palabra localmente al root, y que haga el sumatorio
+	MPI_Reduce(&vecesQueApareceLaPalabraThread,&vecesQueApareceLaPalabra,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
+	/*
+	#pragma omp critical
+	{
+		//en la zona critica es donde añadimos el valor
+		//de las variables de hilo, a las variables "globales"
+		usuariosMirados+=usuariosMiradosThread;
+		tweetsMirados+=tweetsMiradosThread;
+		vecesQueApareceLaPalabra+=vecesQueApareceLaPalabraThread;
+	    for ( unsigned i = 0; i < VecesPorFechaThread.bucket_count(); ++i) {
+		    for ( auto local_it = VecesPorFechaThread.begin(i); local_it!= VecesPorFechaThread.end(i); ++local_it ){
+		    	unordered_map<int,int>::const_iterator got = VecesPorFecha.find (local_it->first);
+				if (got == VecesPorFecha.end() ){
+					pair<int,int> parfechanumerotweets (local_it->first,local_it->second);
+					VecesPorFecha.insert(parfechanumerotweets);
+				}
+				else{
+					int i=local_it->second;
+					VecesPorFecha.at(local_it->first)+=i;
+				}
+		    }
+		}
+	}	
+
+*/
+
+	MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
+	if(myrank==0) {
+		//que esto solo lo haga el proceso 0
+	    std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
+	    cout<<endl<<endl<<"Total tweets mirados "<<tweetsMirados << " de "<< usuariosMirados <<" usuarios"<<endl;
+	    cout<<"la palabra "<<palabrabuscada<<" aparece "<<vecesQueApareceLaPalabra<<" veces"<<endl;
+	   	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::milliseconds> (end - begin).count() << " milisegundos" << std::endl;
+		std::cout << "Ha tardado = " << chrono::duration_cast<chrono::seconds> (end - begin).count() << " segundos" << std::endl;
+		//creamos un archivo .csv con los datos para representarlos en excel
+		//crearCSV(VecesPorFecha);
+	}
+
+	MPI_Finalize();
+	return 0;
 }
