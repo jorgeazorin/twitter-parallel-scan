@@ -9,8 +9,11 @@
 #include <unordered_map>
 #include <ctype.h>
 #include <chrono> //para los cronometros
-//#include <omp.h> 
 #include <mpi.h>
+//para mandar los maps en json y reconvertirlos
+//#include "jsoncpp/json/json.h"
+#include "jsoncpp/jsoncpp.cpp"
+
 using namespace std;
 
 //////////////////////////////////////////////////////////////
@@ -285,6 +288,39 @@ bool BuscarTweetsUsuario(string palabrabuscada, string UsuarioID, unordered_map<
     return true;
 }
 
+string MapToJSON(unordered_map<int, int>& VecesPorFecha, int identificadorProceso) {
+
+	Json::Value jsonMap;
+	unordered_map<int,int>::const_iterator it = VecesPorFecha.begin(), end = VecesPorFecha.end();
+	for ( ; it != end; ++it) {
+	    jsonMap[to_string(it->first)] = it->second;
+	    // ^ beware: std::to_string is C++11
+	}
+
+	Json::Value root;
+	root[to_string(identificadorProceso)]	= jsonMap;
+	Json::StyledWriter writer;
+	string output = writer.write(root);
+	return output;
+}
+
+unordered_map<int, int> JSONToMap(string cadena_json, int identificadorProceso) {
+	Json::Value nuevo_json;
+	Json::Reader reader;
+	bool parsedSuccess = reader.parse(cadena_json,nuevo_json,false);
+	if(parsedSuccess) {
+		unordered_map<int, int> mapa;
+		nuevo_json = nuevo_json[to_string(identificadorProceso)];
+		for(Json::ValueIterator it = nuevo_json.begin();it!=nuevo_json.end();it++) {
+			int clave = stoi(it.key().asString());
+			int valor = stoi((*it).asString());
+			pair<int,int> par (clave,valor);
+			mapa.insert(par);
+		}
+		return mapa;
+	}
+}
+
 
 
 //////////////////////////////////////////////////////////////
@@ -414,8 +450,55 @@ int main( int argc, char* argv[] )
     		break; //si las 2 keys estan totalmente restringidas, habra que esperar 15 minutos
 	}
 
+
+
 	//ZONA CRITICA, 
 	MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
+
+
+	//RECOPILAR TODOS LOS DATOS DE LOS MAPAS
+	if(myrank!=0) //para los procesos slave
+	{
+		string mapa_string = MapToJSON(VecesPorFechaThread,myrank);
+		//mandara su mapa, al proceso padre, destinatario 0, y tag sera su id de procesador
+		MPI_Send(mapa_string.c_str(),mapa_string.size(),MPI_CHAR,0,myrank,MPI_COMM_WORLD);
+	}
+
+	else { //para el proceso padre
+		VecesPorFecha = VecesPorFechaThread; //se inicializa con los datos que ha recopilado el proceso padre
+		//todos los procesos hijo DEBEN mandarle el mapa
+		for(int p=1;p<nprocs;p++)
+		{
+			MPI_Status estado;
+			//Probe es como receive pero no recibe el mensaje, solo hace una query para saber datos utiles como el tamaño del mensaje
+			MPI_Probe(p,p,MPI_COMM_WORLD,&estado); 
+			int tam = 0;
+			MPI_Get_count(&estado,MPI_CHAR,&tam); //obtenemos el tamaño del mensaje
+			char recibir[tam]; //con el tamaño, podemos instanciar un array de chars
+			MPI_Recv(&recibir,tam,MPI_CHAR,p,p,MPI_COMM_WORLD,&estado);
+			//convertimos a string
+			string str(recibir);
+			unordered_map<int, int> mapa_recibido = JSONToMap(str,p); //ya tenemos el mapa
+
+			//en este bucle, se actualizara el mapa PRINCIPAL con los datos del mapa que se ha recibido
+			for ( unsigned i = 0; i < mapa_recibido.bucket_count(); ++i) {
+			    for ( auto local_it = mapa_recibido.begin(i); local_it!= mapa_recibido.end(i); ++local_it ){
+			    	unordered_map<int,int>::const_iterator got = VecesPorFecha.find (local_it->first);
+					if (got == VecesPorFecha.end() ){ //si esa entrada no existe, se añade
+						pair<int,int> parfechanumerotweets (local_it->first,local_it->second);
+						VecesPorFecha.insert(parfechanumerotweets);
+					}
+					else{ //si la entrada ya existe, se incrementa
+						int i=local_it->second;
+						VecesPorFecha.at(local_it->first)+=i;
+					}
+			    }
+			}
+
+
+
+		}
+	}
 
 	//vamos a enviar el numero de usuarios mirados locales al root, y que haga el sumatorio
 	MPI_Reduce(&usuariosMiradosThread,&usuariosMirados,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
@@ -423,30 +506,7 @@ int main( int argc, char* argv[] )
 	MPI_Reduce(&tweetsMiradosThread,&tweetsMirados,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
 	//vamos a enviar el numero de veces que aparece la palabra localmente al root, y que haga el sumatorio
 	MPI_Reduce(&vecesQueApareceLaPalabraThread,&vecesQueApareceLaPalabra,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
-	/*
-	#pragma omp critical
-	{
-		//en la zona critica es donde añadimos el valor
-		//de las variables de hilo, a las variables "globales"
-		usuariosMirados+=usuariosMiradosThread;
-		tweetsMirados+=tweetsMiradosThread;
-		vecesQueApareceLaPalabra+=vecesQueApareceLaPalabraThread;
-	    for ( unsigned i = 0; i < VecesPorFechaThread.bucket_count(); ++i) {
-		    for ( auto local_it = VecesPorFechaThread.begin(i); local_it!= VecesPorFechaThread.end(i); ++local_it ){
-		    	unordered_map<int,int>::const_iterator got = VecesPorFecha.find (local_it->first);
-				if (got == VecesPorFecha.end() ){
-					pair<int,int> parfechanumerotweets (local_it->first,local_it->second);
-					VecesPorFecha.insert(parfechanumerotweets);
-				}
-				else{
-					int i=local_it->second;
-					VecesPorFecha.at(local_it->first)+=i;
-				}
-		    }
-		}
-	}	
 
-*/
 
 	MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
 	if(myrank==0) {
@@ -457,7 +517,7 @@ int main( int argc, char* argv[] )
 	   	std::cout << "Ha tardado = " << chrono::duration_cast<chrono::milliseconds> (end - begin).count() << " milisegundos" << std::endl;
 		std::cout << "Ha tardado = " << chrono::duration_cast<chrono::seconds> (end - begin).count() << " segundos" << std::endl;
 		//creamos un archivo .csv con los datos para representarlos en excel
-		//crearCSV(VecesPorFecha);
+		crearCSV(VecesPorFecha);
 	}
 
 	MPI_Finalize();
