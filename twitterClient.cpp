@@ -420,7 +420,7 @@ int main( int argc, char* argv[] )
 		usuarios_recibidos = split(str,';'); //inicializamos el vector de usuarios, con los usuarios que iban separados por ;
 	}
 
-	MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
+	//MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
 
 	//Variables locales, cada proceso dispondrá de una copia
 	int usuariosMiradosThread=0; //Número usuarios mirados por thread
@@ -437,7 +437,6 @@ int main( int argc, char* argv[] )
  	api.getOAuth().setConsumerSecret( std::string( "zJW9NJY8IlOYoaG4zr1LEBdeHcTfKZ2mbTeI9WzcQ4Q19KJT0a" ) );
 
  	string usuarioID; //variable que guarda el usuario al que se van a leer los tweets
-
     for(int i=0;i<usuarios_recibidos.size();i++){ //para cada usuario perteneciente a un proceso x
     	//incrementamos la variable local de usuarios mirados por hilo
     	usuariosMiradosThread++;
@@ -451,8 +450,9 @@ int main( int argc, char* argv[] )
 	}
 
 
-
-	//ZONA CRITICA, 
+	/////////////////////////////////////////////////////////////////////////////////////////
+	//ZONA CRITICA///////////////////////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////////////////////////////////
 	MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
 
 
@@ -470,7 +470,8 @@ int main( int argc, char* argv[] )
 		for(int p=1;p<nprocs;p++)
 		{
 			MPI_Status estado;
-			//Probe es como receive pero no recibe el mensaje, solo hace una query para saber datos utiles como el tamaño del mensaje
+			//Probe es como receive pero no recibe el mensaje, 
+			//solo hace una query para saber datos utiles como el tamaño del mensaje
 			MPI_Probe(p,p,MPI_COMM_WORLD,&estado); 
 			int tam = 0;
 			MPI_Get_count(&estado,MPI_CHAR,&tam); //obtenemos el tamaño del mensaje
@@ -494,9 +495,6 @@ int main( int argc, char* argv[] )
 					}
 			    }
 			}
-
-
-
 		}
 	}
 
@@ -506,9 +504,14 @@ int main( int argc, char* argv[] )
 	MPI_Reduce(&tweetsMiradosThread,&tweetsMirados,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
 	//vamos a enviar el numero de veces que aparece la palabra localmente al root, y que haga el sumatorio
 	MPI_Reduce(&vecesQueApareceLaPalabraThread,&vecesQueApareceLaPalabra,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
-
-
 	MPI_Barrier(MPI_COMM_WORLD); //barrera para sincronizar todos los procesos
+
+	/////////////////////////////////////////////////////////////////////////////////////////
+	//FIN DE ZONA CRITICA///////////////////////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////////////////////////////////
+
+
+	//el proceso maestro imprime los resultados
 	if(myrank==0) {
 		//que esto solo lo haga el proceso 0
 	    std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
